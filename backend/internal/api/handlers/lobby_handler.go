@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/clementd-tek/remote-buzzer/backend/internal/api/dto"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -45,25 +47,43 @@ func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 
+	response := dto.FromLobby(
+		result.Snapshot(),
+	)
+
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
 	)
 
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *LobbyHandler) List(w http.ResponseWriter, r *http.Request) {
-
 	lobbies := h.service.List()
+
+	responses := make(
+		[]dto.LobbyResponse,
+		0,
+		len(lobbies),
+	)
+
+	for _, item := range lobbies {
+
+		responses = append(
+			responses,
+			dto.FromLobby(
+				item.Snapshot(),
+			),
+		)
+	}
 
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
 	)
 
-	json.NewEncoder(w).Encode(lobbies)
-
+	json.NewEncoder(w).Encode(responses)
 }
 
 func (h *LobbyHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -82,10 +102,15 @@ func (h *LobbyHandler) Get(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
+
+	response := dto.FromLobby(
+		result.Snapshot(),
+	)
+
 	w.Header().Set(
 		"Content-Type",
 		"application/json",
 	)
 
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(response)
 }

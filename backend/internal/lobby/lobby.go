@@ -42,6 +42,16 @@ type Lobby struct {
 	Winner  *BuzzResult
 }
 
+type LobbySnapshot struct {
+	ID          string
+	Name        string
+	Public      bool
+	State       State
+	HostID      string
+	PlayerCount int
+	Winner      *BuzzResult
+}
+
 func New(id string, name string, hostID string, public bool) *Lobby {
 	return &Lobby{
 		ID:      id,
@@ -111,4 +121,19 @@ func (l *Lobby) Buzz(playerID string) (*BuzzResult, error) {
 	l.State = StateLocked
 
 	return result, nil
+}
+
+func (l *Lobby) Snapshot() LobbySnapshot {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return LobbySnapshot{
+		ID:          l.ID,
+		Name:        l.Name,
+		Public:      l.Public,
+		State:       l.State,
+		HostID:      l.HostID,
+		PlayerCount: len(l.Players),
+		Winner:      l.Winner,
+	}
 }
