@@ -14,14 +14,29 @@ func TestBuzzWinner(t *testing.T) {
 		true,
 	)
 
-	l.AddPlayer(
+	err := l.AddPlayer(
 		&lobby.Player{
 			ID: "p1",
 		},
 	)
 
-	// manually move state
-	l.OpenBuzz()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// lobby becomes ready
+	err = l.SetReady()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// host opens buzzer
+	err = l.OpenBuzz()
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := l.Buzz("p1")
 

@@ -62,6 +62,20 @@ func (l *Lobby) AddPlayer(player *Player) error {
 	return nil
 }
 
+func (l *Lobby) SetReady() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.State != StateWaiting {
+
+		return ErrLobbyClosed
+	}
+
+	l.State = StateReady
+
+	return nil
+}
+
 func (l *Lobby) OpenBuzz() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
