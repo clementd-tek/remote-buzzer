@@ -7,6 +7,7 @@ import (
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/config"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+	"github.com/clementd-tek/remote-buzzer/backend/internal/ws"
 )
 
 type App struct {
@@ -24,9 +25,12 @@ func New(cfg config.Config, logger *slog.Logger) *App {
 		manager,
 	)
 
+	hub := ws.NewHub(logger)
+
 	router := api.NewRouter(
 		logger,
 		lobbyService,
+		hub,
 	)
 
 	server := &http.Server{

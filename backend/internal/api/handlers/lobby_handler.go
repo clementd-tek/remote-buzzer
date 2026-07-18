@@ -6,6 +6,7 @@ import (
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api/dto"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+	"github.com/clementd-tek/remote-buzzer/backend/internal/ws"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -17,11 +18,13 @@ type joinLobbyRequest struct {
 
 type LobbyHandler struct {
 	service *lobby.Service
+	hub     *ws.Hub
 }
 
-func NewLobbyHandler(service *lobby.Service) *LobbyHandler {
+func NewLobbyHandler(service *lobby.Service, hub *ws.Hub) *LobbyHandler {
 	return &LobbyHandler{
 		service: service,
+		hub:     hub,
 	}
 }
 
@@ -135,6 +138,13 @@ func (h *LobbyHandler) Join(w http.ResponseWriter, r *http.Request) {
 	response := dto.PlayerResponse{
 		ID:   player.ID,
 		Name: player.Name,
+	}
+
+	if l, getErr := h.service.Get(lobbyID); getErr == nil {
+		h.hub.Broadcast(lobbyID, wsOutbound{
+			Type:  "lobby_update",
+			Lobby: lobbyResponse(l),
+		})
 	}
 
 	w.Header().Set(

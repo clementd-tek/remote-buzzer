@@ -50,3 +50,49 @@ func (s *Service) Join(lobbyID string, player *Player) error {
 
 	return l.AddPlayer(player)
 }
+
+// SetReady moves a lobby from waiting to ready, so the host can then open
+// the buzzer for a round.
+func (s *Service) SetReady(lobbyID string) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := l.SetReady(); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+// OpenBuzz opens the buzzer for a round, allowing players to buzz in.
+func (s *Service) OpenBuzz(lobbyID string) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := l.OpenBuzz(); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}
+
+// Buzz registers a player's buzz for the current round.
+func (s *Service) Buzz(lobbyID string, playerID string) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := l.Buzz(playerID); err != nil {
+		return nil, err
+	}
+
+	return l, nil
+}

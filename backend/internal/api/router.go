@@ -6,11 +6,12 @@ import (
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api/handlers"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+	"github.com/clementd-tek/remote-buzzer/backend/internal/ws"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(logger *slog.Logger, lobbyService *lobby.Service) http.Handler {
+func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(
@@ -20,6 +21,12 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service) http.Handler {
 
 	lobbyHandler := handlers.NewLobbyHandler(
 		lobbyService,
+		hub,
+	)
+
+	lobbyWSHandler := handlers.NewLobbyWSHandler(
+		lobbyService,
+		hub,
 	)
 
 	r.Route(
@@ -44,6 +51,11 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service) http.Handler {
 			r.Post(
 				"/lobbies/{id}/join",
 				lobbyHandler.Join,
+			)
+
+			r.Get(
+				"/lobbies/{id}/ws",
+				lobbyWSHandler.Serve,
 			)
 		},
 	)
