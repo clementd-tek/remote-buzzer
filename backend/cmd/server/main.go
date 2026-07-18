@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-
 	cfg := config.Load()
 
 	logger := slog.New(

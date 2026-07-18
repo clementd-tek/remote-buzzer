@@ -1,0 +1,91 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+	"github.com/go-chi/chi/v5"
+)
+
+type LobbyHandler struct {
+	service *lobby.Service
+}
+
+func NewLobbyHandler(service *lobby.Service) *LobbyHandler {
+	return &LobbyHandler{
+		service: service,
+	}
+}
+
+type createLobbyRequest struct {
+	Name   string `json:"name"`
+	HostID string `json:"hostId"`
+	Public bool   `json:"public"`
+}
+
+func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req createLobbyRequest
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(
+			w,
+			"invalid body",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	result := h.service.Create(
+		lobby.CreateLobbyRequest{
+			Name:   req.Name,
+			HostID: req.HostID,
+			Public: req.Public,
+		},
+	)
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).Encode(result)
+}
+
+func (h *LobbyHandler) List(w http.ResponseWriter, r *http.Request) {
+
+	lobbies := h.service.List()
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).Encode(lobbies)
+
+}
+
+func (h *LobbyHandler) Get(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(
+		r,
+		"id",
+	)
+
+	result, err := h.service.Get(id)
+
+	if err != nil {
+		http.Error(
+			w,
+			"lobby not found",
+			http.StatusNotFound,
+		)
+		return
+	}
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).Encode(result)
+}

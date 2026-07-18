@@ -1,52 +1,44 @@
 package api
 
 import (
-	"encoding/json"
 	"log/slog"
 	"net/http"
 
+	"github.com/clementd-tek/remote-buzzer/backend/internal/api/handlers"
+	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(
-	logger *slog.Logger,
-) http.Handler {
-
+func NewRouter(logger *slog.Logger, lobbyService *lobby.Service) http.Handler {
 	r := chi.NewRouter()
 
-	r.Get(
-		"/health",
-		func(
-			w http.ResponseWriter,
-			r *http.Request,
-		) {
-
-			response := map[string]string{
-				"status": "ok",
-			}
-
-			w.Header().
-				Set(
-					"Content-Type",
-					"application/json",
-				)
-
-			json.NewEncoder(w).
-				Encode(response)
-		},
+	r.Use(
+		middleware.Logger,
+		middleware.Recoverer,
 	)
 
-	r.Get(
-		"/",
-		func(
-			w http.ResponseWriter,
-			r *http.Request,
-		) {
+	lobbyHandler := handlers.NewLobbyHandler(
+		lobbyService,
+	)
 
-			w.Write(
-				[]byte(
-					"remote buzzer server",
-				),
+	r.Route(
+		"/api",
+		func(r chi.Router) {
+
+			r.Post(
+				"/lobbies",
+				lobbyHandler.Create,
+			)
+
+			r.Get(
+				"/lobbies",
+				lobbyHandler.List,
+			)
+
+			r.Get(
+				"/lobbies/{id}",
+				lobbyHandler.Get,
 			)
 		},
 	)
