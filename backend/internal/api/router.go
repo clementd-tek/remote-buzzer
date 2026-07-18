@@ -40,6 +40,11 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service) http.Handler {
 				"/lobbies/{id}",
 				lobbyHandler.Get,
 			)
+
+			r.Post(
+				"/lobbies/{id}/join",
+				lobbyHandler.Join,
+			)
 		},
 	)
 

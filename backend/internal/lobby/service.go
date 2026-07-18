@@ -40,3 +40,13 @@ func (s *Service) Get(id string) (*Lobby, error) {
 func (s *Service) List() []*Lobby {
 	return s.manager.List()
 }
+
+func (s *Service) Join(lobbyID string, player *Player) error {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return err
+	}
+
+	return l.AddPlayer(player)
+}

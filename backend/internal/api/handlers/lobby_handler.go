@@ -10,6 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type joinLobbyRequest struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type LobbyHandler struct {
 	service *lobby.Service
 }
@@ -84,6 +89,61 @@ func (h *LobbyHandler) List(w http.ResponseWriter, r *http.Request) {
 	)
 
 	json.NewEncoder(w).Encode(responses)
+}
+
+func (h *LobbyHandler) Join(w http.ResponseWriter, r *http.Request) {
+	lobbyID := chi.URLParam(
+		r,
+		"id",
+	)
+
+	var req joinLobbyRequest
+
+	err := json.NewDecoder(r.Body).
+		Decode(&req)
+
+	if err != nil {
+		http.Error(
+			w,
+			"invalid body",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
+
+	player := &lobby.Player{
+		ID:   req.ID,
+		Name: req.Name,
+	}
+
+	err = h.service.Join(
+		lobbyID,
+		player,
+	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusNotFound,
+		)
+
+		return
+	}
+
+	response := dto.PlayerResponse{
+		ID:   player.ID,
+		Name: player.Name,
+	}
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).
+		Encode(response)
 }
 
 func (h *LobbyHandler) Get(w http.ResponseWriter, r *http.Request) {
