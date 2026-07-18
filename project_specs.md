@@ -1,6 +1,6 @@
 # Fiche descriptive de projet Hub
 ---
-Le MEGA buzzer de la mort qui tue
+L'app de buzzer en réseaux
 
 ## Contexte et but du projet
 Détailler l’origine du projet, les éléments motivants sa réalisation et un 
@@ -27,7 +27,17 @@ Clément DEVAUX - Tek2 BDFL du projet
 
 ## Objectif fonctionnel
 Lister les fonctionnalités majeures de chacune des parties du projet sous la 
-forme de user story https://fr.wikipedia.org/wiki/R%C3%A9cit_utilisateur 
+forme de user story https://fr.wikipedia.org/wiki/R%C3%A9cit_utilisateur
+
+- L'utilisateur hôte tombe sur la homepage du site
+- L'utilisateur hôte creer un lobby
+- L'hôte partage un lien à ses amis
+- Ses amis tombe sur une app avec un buzzer
+  - Buzzer vert : clickable
+  - Buzzer gris : non clickable
+  - Buzzer jaune : tu as gagner
+  - Buzzer rouge : tu as perdu
+
 
 ## Environnement technique / technologique
 Exposer le contexte technique et technologique (matériel, langage, 
@@ -36,11 +46,15 @@ environnement d’exécution, ressources, …) dans lequel le projet s’inscrit
 Back:
   - Environnement : Docker
   - Langage : 
-    - Go avec Gin
+    - Go avec Chi
     - Utilisation de websocket
+  - Loadbalancer (nginx ou traefik)
+  - Valkey pour mise en cache
 
 Front:
+  - Vite
   - React.js
+  - Typescript
 
 ## Description du livrable
 Détailler chaque élément (programmes, librairies, modules, assets, …) du 
@@ -56,3 +70,17 @@ perdu)
 
 ## Organisation et temporalité
 Exposer le plan de réalisation du projet : parties, dépendances, planification
+
+Backend (20h):
+  - Initialisation backend (2h)
+  - Système de lobby (6h)
+  - API REST (4h)
+  - WebSocket (5h)
+  - Préparation Valkey (3h)
+
+Frontend (20h):
+  - Initialisation React (2h)
+  - Accueil et création lobby (4h)
+  - Interface lobby (5h)
+  - Buzzer temps réel (6h)
+  - Tests et UX (3h)
