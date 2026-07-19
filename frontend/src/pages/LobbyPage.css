@@ -36,13 +36,25 @@
   word-break: break-word;
 }
 
-.lobby-page__reconnect {
+.lobby-page__connection {
   font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: var(--lose);
-  padding: 6px 12px;
-  border: 1px solid var(--lose);
+  font-size: 0.85rem;
+  padding: 12px 18px;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  background: var(--panel-raised);
+  color: var(--text-dim);
+}
+
+.lobby-page__connection--reconnecting {
+  border-color: var(--lose);
+  background: rgba(255, 71, 87, 0.1);
+  color: var(--lose);
+}
+
+.lobby-page__connection--closed {
+  border-color: var(--idle);
+  color: var(--text-faint);
 }
 
 .lobby-page__error {

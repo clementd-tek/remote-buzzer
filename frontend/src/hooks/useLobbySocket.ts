@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getLobby } from "../api/client";
 import type { ClientMessage, Lobby, ServerMessage } from "../types/lobby";
 
 function wsUrl(lobbyId: string, playerId: string): string {
@@ -19,12 +20,21 @@ interface UseLobbySocketResult {
 }
 
 const RECONNECT_DELAY_MS = 1500;
+const FALLBACK_POLL_MS = 3000;
 
 /**
  * Owns the websocket connection for a single lobby. Keeps the latest
  * lobby_update in state, surfaces the most recent server-side error (e.g.
  * "only the host can open the buzzer"), and reconnects automatically if
  * the connection drops unexpectedly.
+ *
+ * While the socket isn't open (initial connect, or a drop that hasn't
+ * recovered yet), this also polls the REST endpoint every few seconds as
+ * a fallback. Without that, a lobby that never manages to open a
+ * websocket (misconfigured origin, restrictive network, ...) would be
+ * stuck showing whatever snapshot happened to be loaded before the
+ * connection attempt — including a roster missing whoever just joined —
+ * with only a small status indicator hinting that anything's wrong.
  */
 export function useLobbySocket(lobbyId: string, playerId: string | null): UseLobbySocketResult {
   const [lobby, setLobby] = useState<Lobby | null>(null);
@@ -63,10 +73,18 @@ export function useLobbySocket(lobbyId: string, playerId: string | null): UseLob
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (closedByClient.current) {
           setStatus("closed");
           return;
+        }
+
+        if (!event.wasClean) {
+          // Helps diagnose the real cause (e.g. a rejected origin) from
+          // the browser console instead of just "it's stuck".
+          console.warn(
+            `Lobby websocket closed unexpectedly (code ${event.code}). Retrying in ${RECONNECT_DELAY_MS}ms…`,
+          );
         }
 
         setStatus("reconnecting");
@@ -90,6 +108,34 @@ export function useLobbySocket(lobbyId: string, playerId: string | null): UseLob
       socketRef.current?.close();
     };
   }, [lobbyId, playerId]);
+
+  // REST fallback: keep polling for fresh state as long as we don't have
+  // a live connection, so the UI never gets permanently stuck on a stale
+  // snapshot even if the websocket can't connect at all.
+  useEffect(() => {
+    if (!playerId || status === "open") return;
+
+    let cancelled = false;
+
+    const poll = () => {
+      getLobby(lobbyId)
+        .then((fresh) => {
+          if (!cancelled) setLobby(fresh);
+        })
+        .catch(() => {
+          // Ignore — the websocket retry loop already surfaces
+          // connectivity issues, and this will just try again shortly.
+        });
+    };
+
+    poll();
+    const interval = setInterval(poll, FALLBACK_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [lobbyId, playerId, status]);
 
   const send = useCallback((message: ClientMessage) => {
     const socket = socketRef.current;

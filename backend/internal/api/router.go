@@ -6,6 +6,7 @@ import (
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api/handlers"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
+	"github.com/clementd-tek/remote-buzzer/backend/internal/originpolicy"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/ws"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -20,8 +21,15 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub, al
 		middleware.Recoverer,
 	)
 
+	allowed := make(map[string]bool, len(allowedOrigins))
+	for _, origin := range allowedOrigins {
+		allowed[origin] = true
+	}
+
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   allowedOrigins,
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			return originpolicy.IsLocal(origin) || len(allowed) == 0 || allowed[origin]
+		},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type"},
 		AllowCredentials: false,

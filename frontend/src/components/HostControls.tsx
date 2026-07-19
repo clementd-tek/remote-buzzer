@@ -5,11 +5,12 @@ import "./HostControls.css";
 interface HostControlsProps {
   lobby: Lobby;
   inviteUrl: string;
+  connected: boolean;
   onReady: () => void;
   onOpen: () => void;
 }
 
-export function HostControls({ lobby, inviteUrl, onReady, onOpen }: HostControlsProps) {
+export function HostControls({ lobby, inviteUrl, connected, onReady, onOpen }: HostControlsProps) {
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
@@ -51,7 +52,7 @@ export function HostControls({ lobby, inviteUrl, onReady, onOpen }: HostControls
               type="button"
               className="host-controls__primary"
               onClick={onReady}
-              disabled={lobby.playerCount === 0}
+              disabled={lobby.playerCount === 0 || !connected}
             >
               Verrouiller les inscriptions
             </button>
@@ -61,7 +62,12 @@ export function HostControls({ lobby, inviteUrl, onReady, onOpen }: HostControls
         {lobby.state === "ready" && (
           <>
             <p>Les inscriptions sont verrouillées. Prêt quand tu veux.</p>
-            <button type="button" className="host-controls__primary host-controls__primary--go" onClick={onOpen}>
+            <button
+              type="button"
+              className="host-controls__primary host-controls__primary--go"
+              onClick={onOpen}
+              disabled={!connected}
+            >
               Lancer le buzzer
             </button>
           </>

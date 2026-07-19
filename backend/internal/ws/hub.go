@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/clementd-tek/remote-buzzer/backend/internal/originpolicy"
 	"github.com/gorilla/websocket"
 )
 
@@ -59,11 +60,27 @@ func (h *Hub) checkOrigin(r *http.Request) bool {
 		return true
 	}
 
+	if originpolicy.IsLocal(origin) {
+		return true
+	}
+
 	if len(h.allowedOrigins) == 0 {
 		return true
 	}
 
-	return h.allowedOrigins[origin]
+	if h.allowedOrigins[origin] {
+		return true
+	}
+
+	if h.logger != nil {
+		h.logger.Warn(
+			"ws: rejected connection from unrecognized origin",
+			"origin", origin,
+			"allowed", h.allowedOrigins,
+		)
+	}
+
+	return false
 }
 
 // Serve upgrades the HTTP connection to a websocket, registers the

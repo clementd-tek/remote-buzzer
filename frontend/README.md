@@ -55,3 +55,28 @@ clearing storage) starts a fresh join.
 `Dockerfile` builds the app and serves the static output via nginx. See
 the root `docker-compose.yml` for how it fits with the backend and the
 load-balancing nginx in front of everything.
+
+## Tests
+
+```bash
+npm run test
+```
+
+Runs against a real backend on `http://localhost:8080` (see
+`.env.test`) rather than mocking fetch/websocket — start the backend
+first (`cd ../backend && go run ./cmd/server/main.go`).
+
+## A gotcha this app used to hit
+
+If the browser's page origin doesn't match what the backend's websocket
+upgrade handler allows, REST calls keep working fine (they're proxied
+server-side, invisible to browser CORS) while the websocket silently
+fails to connect — so the UI looks like it's frozen on stale data with
+only a small "reconnecting" indicator as a clue. The backend now always
+allows any `localhost`/`127.0.0.1` origin regardless of port (see
+`internal/originpolicy` on the backend) specifically because Vite picks
+a different port than 5173 whenever 5173 is already taken. `strictPort:
+true` in `vite.config.ts` also makes that port collision fail loudly
+instead of silently drifting. The frontend additionally polls over REST
+as a fallback whenever the websocket isn't connected, so even a genuine
+network issue won't leave the UI permanently stale.

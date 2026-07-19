@@ -101,8 +101,8 @@ export function LobbyPage() {
   return <ConnectedLobby lobbyId={lobbyId} identity={identity} fallback={initialLobby} />;
 }
 
-function buzzerState(lobby: Lobby, playerId: string): BuzzerVisualState {
-  if (lobby.state === "open") return "go";
+function buzzerState(lobby: Lobby, playerId: string, connected: boolean): BuzzerVisualState {
+  if (lobby.state === "open" && connected) return "go";
 
   if (lobby.state === "locked") {
     return lobby.winner?.playerId === playerId ? "win" : "lose";
@@ -111,7 +111,7 @@ function buzzerState(lobby: Lobby, playerId: string): BuzzerVisualState {
   return "idle";
 }
 
-function buzzerLabel(lobby: Lobby, state: BuzzerVisualState): string {
+function buzzerLabel(lobby: Lobby, state: BuzzerVisualState, connected: boolean): string {
   switch (state) {
     case "go":
       return "Buzz !";
@@ -120,6 +120,7 @@ function buzzerLabel(lobby: Lobby, state: BuzzerVisualState): string {
     case "lose":
       return "Trop lent";
     default:
+      if (lobby.state === "open" && !connected) return "Reconnexion…";
       return lobby.state === "ready" ? "La manche va commencer…" : "En attente du lancement";
   }
 }
@@ -144,11 +145,16 @@ function ConnectedLobby({
           <h1 className="lobby-page__title">{lobby.name}</h1>
           <StatusDot state={lobby.state} />
         </div>
-
-        {status === "reconnecting" && (
-          <span className="lobby-page__reconnect">Connexion perdue, reconnexion…</span>
-        )}
       </header>
+
+      {status !== "open" && (
+        <div className={`lobby-page__connection lobby-page__connection--${status}`}>
+          {status === "connecting" && "Connexion en temps réel…"}
+          {status === "reconnecting" &&
+            "Connexion en temps réel perdue — nouvelle tentative en cours. Les données ci-dessous peuvent être en retard."}
+          {status === "closed" && "Déconnecté."}
+        </div>
+      )}
 
       {lastError && <p className="lobby-page__error">{lastError}</p>}
 
@@ -157,6 +163,7 @@ function ConnectedLobby({
           <HostControls
             lobby={lobby}
             inviteUrl={inviteUrl}
+            connected={status === "open"}
             onReady={() => send({ type: "ready" })}
             onOpen={() => send({ type: "open" })}
           />
@@ -173,8 +180,8 @@ function ConnectedLobby({
       ) : (
         <div className="lobby-page__grid lobby-page__grid--player">
           <Buzzer
-            state={buzzerState(lobby, identity.id)}
-            label={buzzerLabel(lobby, buzzerState(lobby, identity.id))}
+            state={buzzerState(lobby, identity.id, status === "open")}
+            label={buzzerLabel(lobby, buzzerState(lobby, identity.id, status === "open"), status === "open")}
             onPress={() => send({ type: "buzz", playerId: identity.id })}
           />
           <div className="lobby-page__roster">
