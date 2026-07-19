@@ -9,15 +9,24 @@ import (
 	"github.com/clementd-tek/remote-buzzer/backend/internal/ws"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
-func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub) http.Handler {
+func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub, allowedOrigins []string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(
 		middleware.Logger,
 		middleware.Recoverer,
 	)
+
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	lobbyHandler := handlers.NewLobbyHandler(
 		lobbyService,
@@ -28,6 +37,11 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub) ht
 		lobbyService,
 		hub,
 	)
+
+	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
 
 	r.Route(
 		"/api",

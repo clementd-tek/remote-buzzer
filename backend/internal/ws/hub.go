@@ -9,15 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	// The frontend (Vite dev server) and the backend are served from
-	// different origins during development, so we don't restrict the
-	// origin here. Tighten this once the frontend origin is known.
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 // room groups every client currently connected to a given lobby.
 type room struct {
 	clients map[*Client]bool
@@ -26,16 +17,53 @@ type room struct {
 // Hub keeps track of all per-lobby rooms and lets the rest of the
 // application broadcast messages to every client connected to a lobby.
 type Hub struct {
-	mu     sync.RWMutex
-	rooms  map[string]*room
-	logger *slog.Logger
+	mu             sync.RWMutex
+	rooms          map[string]*room
+	logger         *slog.Logger
+	allowedOrigins map[string]bool
+	upgrader       websocket.Upgrader
 }
 
-func NewHub(logger *slog.Logger) *Hub {
-	return &Hub{
-		rooms:  make(map[string]*room),
-		logger: logger,
+// NewHub creates a Hub. allowedOrigins lists the origins permitted to open
+// a websocket connection (e.g. the frontend's URL); a request without an
+// Origin header (non-browser clients, same-origin tooling) is always
+// allowed since browsers are the only clients that send it.
+func NewHub(logger *slog.Logger, allowedOrigins []string) *Hub {
+	originSet := make(map[string]bool, len(allowedOrigins))
+
+	for _, origin := range allowedOrigins {
+		if origin != "" {
+			originSet[origin] = true
+		}
 	}
+
+	h := &Hub{
+		rooms:          make(map[string]*room),
+		logger:         logger,
+		allowedOrigins: originSet,
+	}
+
+	h.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     h.checkOrigin,
+	}
+
+	return h
+}
+
+func (h *Hub) checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+
+	if origin == "" {
+		return true
+	}
+
+	if len(h.allowedOrigins) == 0 {
+		return true
+	}
+
+	return h.allowedOrigins[origin]
 }
 
 // Serve upgrades the HTTP connection to a websocket, registers the
@@ -43,7 +71,7 @@ func NewHub(logger *slog.Logger) *Hub {
 // onMessage is invoked (from the client's read loop) for every message
 // sent by that client.
 func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, lobbyID string, playerID string, onMessage func(c *Client, msg Inbound)) (*Client, error) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 
 	if err != nil {
 		return nil, err

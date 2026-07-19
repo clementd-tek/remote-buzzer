@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/app"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/config"
@@ -18,6 +21,13 @@ func main() {
 		),
 	)
 
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
 	application := app.New(
 		cfg,
 		logger,
@@ -29,7 +39,7 @@ func main() {
 		cfg.Port,
 	)
 
-	if err := application.Run(); err != nil {
+	if err := application.Run(ctx); err != nil {
 		logger.Error(
 			"server stopped",
 			"error",

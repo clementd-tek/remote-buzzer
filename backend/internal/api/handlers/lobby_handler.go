@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api/dto"
@@ -34,6 +35,21 @@ type createLobbyRequest struct {
 	Public bool   `json:"public"`
 }
 
+// statusForError maps a domain error to the HTTP status code that best
+// represents it. Anything not recognised falls back to 500.
+func statusForError(err error) int {
+	switch {
+	case errors.Is(err, lobby.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, lobby.ErrInvalidName),
+		errors.Is(err, lobby.ErrInvalidID),
+		errors.Is(err, lobby.ErrRoundInProgress):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createLobbyRequest
 
@@ -47,13 +63,22 @@ func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result := h.service.Create(
+	result, err := h.service.Create(
 		lobby.CreateLobbyRequest{
 			Name:   req.Name,
 			HostID: req.HostID,
 			Public: req.Public,
 		},
 	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			statusForError(err),
+		)
+		return
+	}
 
 	response := dto.FromLobby(
 		result.Snapshot(),
@@ -67,8 +92,10 @@ func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// List returns public lobbies only. This backs the homepage list, which
+// must never leak private lobbies to unauthenticated visitors.
 func (h *LobbyHandler) List(w http.ResponseWriter, r *http.Request) {
-	lobbies := h.service.List()
+	lobbies := h.service.ListPublic()
 
 	responses := make(
 		[]dto.LobbyResponse,
@@ -129,7 +156,7 @@ func (h *LobbyHandler) Join(w http.ResponseWriter, r *http.Request) {
 		http.Error(
 			w,
 			err.Error(),
-			http.StatusNotFound,
+			statusForError(err),
 		)
 
 		return
