@@ -1,0 +1,47 @@
+.roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.roster-empty {
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.roster__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline);
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.roster__tag--winner {
+  border-color: var(--win);
+  background: rgba(255, 210, 63, 0.12);
+  color: var(--win);
+}
+
+.roster__tag--loser {
+  opacity: 0.55;
+}
+
+.roster__you,
+.roster__host {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 1px 5px;
+}

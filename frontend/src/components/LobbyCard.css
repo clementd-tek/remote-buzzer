@@ -1,0 +1,41 @@
+.lobby-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.lobby-card:hover {
+  border-color: var(--chrome);
+  transform: translateY(-1px);
+}
+
+.lobby-card__main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lobby-card__name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-card__count {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}

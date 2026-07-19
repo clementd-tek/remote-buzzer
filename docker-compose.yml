@@ -4,7 +4,11 @@ services:
       context: ./backend
     environment:
       PORT: "8080"
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      # Defaults to where nginx below exposes the frontend in this
+      # stack. Override in .env if you're serving the frontend
+      # elsewhere (e.g. http://localhost:5173 for `npm run dev`
+      # against a backend run outside Docker).
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
       VALKEY_ADDR: valkey:6379
       LOBBY_TTL: 6h
       LOBBY_CLEANUP_INTERVAL: 10m
@@ -27,6 +31,12 @@ services:
     expose:
       - "8080"
 
+  frontend:
+    build:
+      context: ./frontend
+    expose:
+      - "80"
+
   valkey:
     image: valkey/valkey:8-alpine
     command: ["valkey-server", "--save", ""]
@@ -42,20 +52,11 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       - backend
+      - frontend
     ports:
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-
-  # No frontend code exists in this repo yet. Once it does, add:
-  #
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #   expose:
-  #     - "3000"
-  #
-  # ...and route to it from nginx alongside /api and /api/*/ws.
 
 volumes:
   valkey-data:

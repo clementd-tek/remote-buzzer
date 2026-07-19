@@ -2,6 +2,7 @@ package lobby
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -59,8 +60,16 @@ type LobbySnapshot struct {
 	State       State
 	HostID      string
 	PlayerCount int
+	Players     []PlayerInfo
 	Winner      *BuzzResult
 	UpdatedAt   time.Time
+}
+
+// PlayerInfo is the public-facing view of a Player: enough to render a
+// roster without leaking anything internal.
+type PlayerInfo struct {
+	ID   string
+	Name string
 }
 
 func New(id string, name string, hostID string, public bool) *Lobby {
@@ -204,6 +213,16 @@ func (l *Lobby) Snapshot() LobbySnapshot {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
+	players := make([]PlayerInfo, 0, len(l.Players))
+
+	for _, p := range l.Players {
+		players = append(players, PlayerInfo{ID: p.ID, Name: p.Name})
+	}
+
+	sort.Slice(players, func(i, j int) bool {
+		return l.Players[players[i].ID].JoinedAt.Before(l.Players[players[j].ID].JoinedAt)
+	})
+
 	return LobbySnapshot{
 		ID:          l.ID,
 		Name:        l.Name,
@@ -211,6 +230,7 @@ func (l *Lobby) Snapshot() LobbySnapshot {
 		State:       l.State,
 		HostID:      l.HostID,
 		PlayerCount: len(l.Players),
+		Players:     players,
 		Winner:      l.Winner,
 		UpdatedAt:   l.UpdatedAt,
 	}

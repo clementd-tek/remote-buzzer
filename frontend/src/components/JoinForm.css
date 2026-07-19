@@ -1,0 +1,75 @@
+.join-form {
+  max-width: 420px;
+  margin: 10vh auto;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 48px 36px;
+}
+
+.join-form__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--go);
+}
+
+.join-form__title {
+  margin-top: 10px;
+  font-size: 2rem;
+  word-break: break-word;
+}
+
+.join-form__hint {
+  margin-top: 14px;
+  margin-bottom: 28px;
+}
+
+.join-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.join-form input {
+  background: var(--stage);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  color: var(--text);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.join-form input:focus {
+  border-color: var(--go);
+}
+
+.join-form__error {
+  color: var(--lose);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.join-form button {
+  background: var(--go);
+  color: #0b1a10;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.join-form button:hover:not(:disabled) {
+  background: var(--go-strong);
+}
+
+.join-form button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

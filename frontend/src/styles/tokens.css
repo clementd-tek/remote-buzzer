@@ -1,0 +1,53 @@
+:root {
+  /* --- Stage (backgrounds) --- */
+  --stage: #0b0d12;
+  --panel: #161a22;
+  --panel-raised: #1e2430;
+  --hairline: #2a3040;
+
+  /* --- Chrome / neutral text --- */
+  --chrome: #8b93a7;
+  --text: #f5f3ec;
+  --text-dim: #9ba3b4;
+  --text-faint: #626b7d;
+
+  /* --- Signal colors: these ARE the buzzer states, not decoration --- */
+  --idle: #4a5164;
+  --idle-dim: #363c4b;
+
+  --go: #2ed573;
+  --go-strong: #22b862;
+  --go-glow: rgba(46, 213, 115, 0.55);
+
+  --win: #ffd23f;
+  --win-strong: #f5b800;
+  --win-glow: rgba(255, 210, 63, 0.6);
+
+  --lose: #ff4757;
+  --lose-strong: #e02f3d;
+  --lose-glow: rgba(255, 71, 87, 0.5);
+
+  /* --- Type --- */
+  --font-display: "Archivo Black", "Arial Black", sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* --- Layout --- */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --max-width: 1080px;
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

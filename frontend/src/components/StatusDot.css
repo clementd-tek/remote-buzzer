@@ -1,0 +1,50 @@
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.status-dot__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idle);
+  flex-shrink: 0;
+}
+
+.status-dot--waiting .status-dot__mark {
+  background: var(--idle);
+}
+
+.status-dot--ready .status-dot__mark {
+  background: var(--chrome);
+}
+
+.status-dot--open .status-dot__mark {
+  background: var(--go);
+  box-shadow: 0 0 8px 2px var(--go-glow);
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+.status-dot--open {
+  color: var(--go);
+}
+
+.status-dot--locked .status-dot__mark {
+  background: var(--win);
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

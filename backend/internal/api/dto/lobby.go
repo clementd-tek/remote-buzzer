@@ -7,13 +7,14 @@ import (
 )
 
 type LobbyResponse struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Public      bool            `json:"public"`
-	State       string          `json:"state"`
-	HostID      string          `json:"hostId"`
-	PlayerCount int             `json:"playerCount"`
-	Winner      *WinnerResponse `json:"winner,omitempty"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Public      bool             `json:"public"`
+	State       string           `json:"state"`
+	HostID      string           `json:"hostId"`
+	PlayerCount int              `json:"playerCount"`
+	Players     []PlayerResponse `json:"players"`
+	Winner      *WinnerResponse  `json:"winner,omitempty"`
 }
 
 type WinnerResponse struct {
@@ -22,6 +23,12 @@ type WinnerResponse struct {
 }
 
 func FromLobby(l lobby.LobbySnapshot) LobbyResponse {
+	players := make([]PlayerResponse, 0, len(l.Players))
+
+	for _, p := range l.Players {
+		players = append(players, PlayerResponse{ID: p.ID, Name: p.Name})
+	}
+
 	response := LobbyResponse{
 		ID:          l.ID,
 		Name:        l.Name,
@@ -29,6 +36,7 @@ func FromLobby(l lobby.LobbySnapshot) LobbyResponse {
 		State:       string(l.State),
 		HostID:      l.HostID,
 		PlayerCount: l.PlayerCount,
+		Players:     players,
 	}
 
 	if l.Winner != nil {

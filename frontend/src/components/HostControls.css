@@ -1,0 +1,115 @@
+.host-controls {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.host-controls__invite {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.host-controls__invite-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+}
+
+.host-controls__invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--stage);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.host-controls__invite-row code {
+  flex: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.host-controls__invite-row button {
+  flex-shrink: 0;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 0.8rem;
+}
+
+.host-controls__invite-row button:hover {
+  border-color: var(--chrome);
+}
+
+.host-controls__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.host-controls__actions p {
+  font-size: 0.9rem;
+}
+
+.host-controls__primary {
+  background: var(--panel-raised);
+  border: 1px solid var(--chrome);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.host-controls__primary:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.host-controls__primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.host-controls__primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.host-controls__primary--go {
+  background: var(--go);
+  border-color: var(--go);
+  color: #0b1a10;
+}
+
+.host-controls__primary--go:hover:not(:disabled) {
+  background: var(--go-strong);
+  border-color: var(--go-strong);
+}
+
+.host-controls__live {
+  color: var(--go);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.host-controls__result {
+  color: var(--win);
+  font-size: 1rem;
+}

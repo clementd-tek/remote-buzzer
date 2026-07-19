@@ -1,0 +1,86 @@
+import { useState } from "react";
+import type { Lobby } from "../types/lobby";
+import "./HostControls.css";
+
+interface HostControlsProps {
+  lobby: Lobby;
+  inviteUrl: string;
+  onReady: () => void;
+  onOpen: () => void;
+}
+
+export function HostControls({ lobby, inviteUrl, onReady, onOpen }: HostControlsProps) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can fail (permissions, insecure context); the
+      // link is still visible below for a manual copy.
+    }
+  }
+
+  const winnerName = lobby.winner
+    ? lobby.players.find((p) => p.id === lobby.winner!.playerId)?.name
+    : undefined;
+
+  return (
+    <div className="host-controls">
+      <div className="host-controls__invite">
+        <span className="host-controls__invite-label">Lien à partager</span>
+        <div className="host-controls__invite-row">
+          <code className="mono">{inviteUrl}</code>
+          <button type="button" onClick={copyLink}>
+            {copied ? "Copié !" : "Copier"}
+          </button>
+        </div>
+      </div>
+
+      <div className="host-controls__actions">
+        {lobby.state === "waiting" && (
+          <>
+            <p>
+              {lobby.playerCount === 0
+                ? "En attente du premier joueur…"
+                : `${lobby.playerCount} joueur${lobby.playerCount > 1 ? "s" : ""} prêt${lobby.playerCount > 1 ? "s" : ""}.`}
+            </p>
+            <button
+              type="button"
+              className="host-controls__primary"
+              onClick={onReady}
+              disabled={lobby.playerCount === 0}
+            >
+              Verrouiller les inscriptions
+            </button>
+          </>
+        )}
+
+        {lobby.state === "ready" && (
+          <>
+            <p>Les inscriptions sont verrouillées. Prêt quand tu veux.</p>
+            <button type="button" className="host-controls__primary host-controls__primary--go" onClick={onOpen}>
+              Lancer le buzzer
+            </button>
+          </>
+        )}
+
+        {lobby.state === "open" && <p className="host-controls__live">Le buzzer est en direct.</p>}
+
+        {lobby.state === "locked" && (
+          <p className="host-controls__result">
+            {winnerName ? (
+              <>
+                🏆 <strong>{winnerName}</strong> a buzzé en premier.
+              </>
+            ) : (
+              "La manche est terminée."
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
