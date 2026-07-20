@@ -4,6 +4,7 @@ import "./StatusDot.css";
 const LABELS: Record<LobbyState, string> = {
   waiting: "En attente",
   ready: "Prêt à démarrer",
+  countdown: "Compte à rebours",
   open: "En direct",
   locked: "Terminé",
 };

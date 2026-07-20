@@ -1,16 +1,28 @@
 import { useState } from "react";
+import { COUNTDOWN_SECONDS } from "../constants";
 import type { Lobby } from "../types/lobby";
+import { Scoreboard } from "./Scoreboard";
 import "./HostControls.css";
 
 interface HostControlsProps {
   lobby: Lobby;
   inviteUrl: string;
   connected: boolean;
+  countdownValue: number | null;
   onReady: () => void;
   onOpen: () => void;
+  onNextRound: () => void;
 }
 
-export function HostControls({ lobby, inviteUrl, connected, onReady, onOpen }: HostControlsProps) {
+export function HostControls({
+  lobby,
+  inviteUrl,
+  connected,
+  countdownValue,
+  onReady,
+  onOpen,
+  onNextRound,
+}: HostControlsProps) {
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
@@ -41,6 +53,8 @@ export function HostControls({ lobby, inviteUrl, connected, onReady, onOpen }: H
       </div>
 
       <div className="host-controls__actions">
+        <span className="host-controls__round mono">Manche {lobby.roundNumber}</span>
+
         {lobby.state === "waiting" && (
           <>
             <p>
@@ -68,25 +82,43 @@ export function HostControls({ lobby, inviteUrl, connected, onReady, onOpen }: H
               onClick={onOpen}
               disabled={!connected}
             >
-              Lancer le buzzer
+              Lancer le buzzer ({COUNTDOWN_SECONDS}s)
             </button>
           </>
+        )}
+
+        {lobby.state === "countdown" && (
+          <p className="host-controls__countdown">
+            Compte à rebours : <strong>{countdownValue ?? COUNTDOWN_SECONDS}</strong>
+          </p>
         )}
 
         {lobby.state === "open" && <p className="host-controls__live">Le buzzer est en direct.</p>}
 
         {lobby.state === "locked" && (
-          <p className="host-controls__result">
-            {winnerName ? (
-              <>
-                🏆 <strong>{winnerName}</strong> a buzzé en premier.
-              </>
-            ) : (
-              "La manche est terminée."
-            )}
-          </p>
+          <>
+            <p className="host-controls__result">
+              {winnerName ? (
+                <>
+                  🏆 <strong>{winnerName}</strong> a buzzé en premier.
+                </>
+              ) : (
+                "La manche est terminée."
+              )}
+            </p>
+            <button
+              type="button"
+              className="host-controls__primary host-controls__primary--go"
+              onClick={onNextRound}
+              disabled={!connected}
+            >
+              Manche suivante
+            </button>
+          </>
         )}
       </div>
+
+      <Scoreboard scores={lobby.scores} />
     </div>
   );
 }

@@ -226,6 +226,200 @@ func TestWebsocketBuzzFlow(t *testing.T) {
 	}
 }
 
+// TestWebsocketCountdownAndMultipleRounds exercises the full multi-round
+// flow: a countdown-gated open, a buzz, next_round awarding a point and
+// resetting to ready, then a second round for a different winner.
+func TestWebsocketCountdownAndMultipleRounds(t *testing.T) {
+	router := newTestRouter()
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	rec := doJSON(t, router, http.MethodPost, "/api/lobbies", map[string]any{
+		"name": "Quiz night", "hostId": "host1", "public": true,
+	})
+
+	var created dto.LobbyResponse
+	json.Unmarshal(rec.Body.Bytes(), &created)
+
+	for _, p := range []struct{ id, name string }{{"p1", "Alice"}, {"p2", "Bob"}} {
+		rec = doJSON(t, router, http.MethodPost, "/api/lobbies/"+created.ID+"/join", map[string]any{
+			"id": p.id, "name": p.name,
+		})
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("join failed for %s: %d %s", p.id, rec.Code, rec.Body.String())
+		}
+	}
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/lobbies/" + created.ID + "/ws"
+
+	hostConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=host1", nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hostConn.Close()
+
+	playerConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=p1", nil)
+	if err != nil {
+		t.Fatalf("player dial failed: %v", err)
+	}
+	defer playerConn.Close()
+
+	// --- Round 1: open with a 1-second countdown ---
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "ready")
+
+	before := time.Now()
+
+	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	countdownUpdate := waitForState(t, hostConn, "countdown")
+
+	if countdownUpdate.Lobby.CountdownEndsAt == nil {
+		t.Fatal("expected CountdownEndsAt to be set during countdown")
+	}
+
+	if countdownUpdate.Lobby.CountdownEndsAt.Before(before.Add(500 * time.Millisecond)) {
+		t.Fatalf("expected countdown to end roughly 1s out, got %v (started %v)", countdownUpdate.Lobby.CountdownEndsAt, before)
+	}
+
+	// The countdown should resolve to "open" on its own, without any
+	// further client message.
+	waitForState(t, hostConn, "open")
+
+	if err := playerConn.WriteJSON(map[string]string{"type": "buzz", "playerId": "p1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForState(t, playerConn, "locked")
+
+	// --- Close round 1, check scoring, start round 2 ---
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "next_round"}); err != nil {
+		t.Fatal(err)
+	}
+
+	afterRound1 := waitForState(t, hostConn, "ready")
+
+	if afterRound1.Lobby.RoundNumber != 2 {
+		t.Fatalf("expected round number 2, got %d", afterRound1.Lobby.RoundNumber)
+	}
+
+	if len(afterRound1.Lobby.Scores) != 1 || afterRound1.Lobby.Scores[0].PlayerID != "p1" || afterRound1.Lobby.Scores[0].Points != 1 {
+		t.Fatalf("expected p1 to have 1 point after round 1, got %+v", afterRound1.Lobby.Scores)
+	}
+
+	if len(afterRound1.Lobby.History) != 1 || afterRound1.Lobby.History[0].WinnerID != "p1" {
+		t.Fatalf("expected round 1 in history with p1 as winner, got %+v", afterRound1.Lobby.History)
+	}
+
+	// --- Round 2: instant open (no countdown), p2 wins this time ---
+
+	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 0}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "open")
+
+	if err := playerConn.WriteJSON(map[string]string{"type": "buzz", "playerId": "p2"}); err != nil {
+		t.Fatal(err)
+	}
+
+	waitForState(t, hostConn, "locked")
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "next_round"}); err != nil {
+		t.Fatal(err)
+	}
+
+	afterRound2 := waitForState(t, hostConn, "ready")
+
+	if afterRound2.Lobby.RoundNumber != 3 {
+		t.Fatalf("expected round number 3, got %d", afterRound2.Lobby.RoundNumber)
+	}
+
+	if len(afterRound2.Lobby.Scores) != 2 {
+		t.Fatalf("expected both players to have a score, got %+v", afterRound2.Lobby.Scores)
+	}
+
+	for _, s := range afterRound2.Lobby.Scores {
+		if s.Points != 1 {
+			t.Fatalf("expected each player to have exactly 1 point, got %+v", s)
+		}
+	}
+
+	if len(afterRound2.Lobby.History) != 2 {
+		t.Fatalf("expected 2 rounds in history, got %d", len(afterRound2.Lobby.History))
+	}
+}
+
+// TestWebsocketNonHostCannotStartNextRound confirms next_round is
+// host-gated just like ready/open.
+func TestWebsocketNonHostCannotStartNextRound(t *testing.T) {
+	router := newTestRouter()
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	rec := doJSON(t, router, http.MethodPost, "/api/lobbies", map[string]any{
+		"name": "Quiz night", "hostId": "host1", "public": true,
+	})
+
+	var created dto.LobbyResponse
+	json.Unmarshal(rec.Body.Bytes(), &created)
+
+	doJSON(t, router, http.MethodPost, "/api/lobbies/"+created.ID+"/join", map[string]any{
+		"id": "p1", "name": "Alice",
+	})
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/lobbies/" + created.ID + "/ws"
+
+	hostConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=host1", nil)
+	if err != nil {
+		t.Fatalf("host dial failed: %v", err)
+	}
+	defer hostConn.Close()
+
+	playerConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=p1", nil)
+	if err != nil {
+		t.Fatalf("player dial failed: %v", err)
+	}
+	defer playerConn.Close()
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "ready")
+
+	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 0}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "open")
+
+	if err := playerConn.WriteJSON(map[string]string{"type": "buzz", "playerId": "p1"}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, playerConn, "locked")
+
+	// p1 (not the host) tries to start the next round.
+	if err := playerConn.WriteJSON(map[string]string{"type": "next_round", "playerId": "p1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	playerConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+	var msg testOutbound
+	if err := playerConn.ReadJSON(&msg); err != nil {
+		t.Fatalf("expected an error message, got read error: %v", err)
+	}
+
+	if msg.Type != "error" {
+		t.Fatalf("expected an error message for a non-host next_round, got %+v", msg)
+	}
+}
+
 type testOutbound struct {
 	Type  string             `json:"type"`
 	Lobby *dto.LobbyResponse `json:"lobby,omitempty"`

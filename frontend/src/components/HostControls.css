@@ -59,6 +59,24 @@
   gap: 14px;
 }
 
+.host-controls__round {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.host-controls__countdown {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.host-controls__countdown strong {
+  color: var(--go);
+}
+
 .host-controls__actions p {
   font-size: 0.9rem;
 }

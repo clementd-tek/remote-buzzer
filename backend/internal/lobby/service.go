@@ -1,6 +1,8 @@
 package lobby
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -108,6 +110,23 @@ func (s *Service) SetReady(lobbyID string) (*Lobby, error) {
 	return l, nil
 }
 
+// StartCountdown begins the pre-buzz countdown ending at endsAt.
+func (s *Service) StartCountdown(lobbyID string, endsAt time.Time) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := l.StartCountdown(endsAt); err != nil {
+		return nil, err
+	}
+
+	s.manager.Touch(l)
+
+	return l, nil
+}
+
 // OpenBuzz opens the buzzer for a round, allowing players to buzz in.
 func (s *Service) OpenBuzz(lobbyID string) (*Lobby, error) {
 	l, err := s.manager.Get(lobbyID)
@@ -134,6 +153,24 @@ func (s *Service) Buzz(lobbyID string, playerID string) (*Lobby, error) {
 	}
 
 	if _, err := l.Buzz(playerID); err != nil {
+		return nil, err
+	}
+
+	s.manager.Touch(l)
+
+	return l, nil
+}
+
+// NextRound closes out the finished round (awarding points and recording
+// history) and resets the lobby to StateReady for another round.
+func (s *Service) NextRound(lobbyID string) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := l.NextRound(); err != nil {
 		return nil, err
 	}
 

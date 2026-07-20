@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import "./Buzzer.css";
 
-export type BuzzerVisualState = "idle" | "go" | "win" | "lose";
+export type BuzzerVisualState = "idle" | "countdown" | "go" | "win" | "lose";
 
 interface BuzzerProps {
   state: BuzzerVisualState;
   label: string;
   onPress: () => void;
+  /** Whole seconds remaining, shown large inside the buzzer face while state is "countdown". */
+  countdownValue?: number | null;
 }
 
-export function Buzzer({ state, label, onPress }: BuzzerProps) {
+export function Buzzer({ state, label, onPress, countdownValue }: BuzzerProps) {
   const [pressed, setPressed] = useState(false);
   const clickable = state === "go";
 
@@ -37,7 +39,13 @@ export function Buzzer({ state, label, onPress }: BuzzerProps) {
       >
         <span className="buzzer__ring" />
         <span className="buzzer__face">
-          <span className="buzzer__icon" aria-hidden="true" />
+          {state === "countdown" && countdownValue != null ? (
+            <span className="buzzer__countdown" key={countdownValue}>
+              {countdownValue > 0 ? countdownValue : "GO"}
+            </span>
+          ) : (
+            <span className="buzzer__icon" aria-hidden="true" />
+          )}
         </span>
       </button>
       <p className="buzzer__label">{label}</p>

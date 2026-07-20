@@ -1,14 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, getLobby, joinLobby } from "../api/client";
 import { getRememberedHostId, getRememberedPlayer, newId, rememberPlayer } from "../api/identity";
+import { isMuted, playGo, playLose, playRoundEnd, playTick, playWin, setMuted } from "../audio/sounds";
 import { Buzzer, type BuzzerVisualState } from "../components/Buzzer";
 import { HostControls } from "../components/HostControls";
 import { JoinForm } from "../components/JoinForm";
 import { PlayerRoster } from "../components/PlayerRoster";
+import { Scoreboard } from "../components/Scoreboard";
 import { StatusDot } from "../components/StatusDot";
+import { COUNTDOWN_SECONDS } from "../constants";
+import { useCountdown } from "../hooks/useCountdown";
 import { useLobbySocket } from "../hooks/useLobbySocket";
-import type { Lobby } from "../types/lobby";
+import type { Lobby, LobbyState } from "../types/lobby";
 import "./LobbyPage.css";
 
 type Identity = { role: "host"; id: string } | { role: "player"; id: string };
@@ -102,6 +106,7 @@ export function LobbyPage() {
 }
 
 function buzzerState(lobby: Lobby, playerId: string, connected: boolean): BuzzerVisualState {
+  if (lobby.state === "countdown") return "countdown";
   if (lobby.state === "open" && connected) return "go";
 
   if (lobby.state === "locked") {
@@ -113,6 +118,8 @@ function buzzerState(lobby: Lobby, playerId: string, connected: boolean): Buzzer
 
 function buzzerLabel(lobby: Lobby, state: BuzzerVisualState, connected: boolean): string {
   switch (state) {
+    case "countdown":
+      return "Prépare-toi !";
     case "go":
       return "Buzz !";
     case "win":
@@ -123,6 +130,39 @@ function buzzerLabel(lobby: Lobby, state: BuzzerVisualState, connected: boolean)
       if (lobby.state === "open" && !connected) return "Reconnexion…";
       return lobby.state === "ready" ? "La manche va commencer…" : "En attente du lancement";
   }
+}
+
+/**
+ * Plays a sound whenever the lobby's state actually transitions (not on
+ * every broadcast — plenty of those don't change state, e.g. someone
+ * else joining while we're still waiting). Skips the very first snapshot
+ * so refreshing mid-round doesn't fire a sound for a transition that
+ * didn't just happen.
+ */
+function useRoundSounds(lobby: Lobby, role: "host" | "player", myId: string) {
+  const prevState = useRef<LobbyState | null>(null);
+
+  useEffect(() => {
+    const previous = prevState.current;
+    prevState.current = lobby.state;
+
+    if (previous === null || previous === lobby.state) return;
+
+    if (lobby.state === "open") {
+      playGo();
+      return;
+    }
+
+    if (lobby.state === "locked") {
+      if (role === "host") {
+        playRoundEnd();
+      } else if (lobby.winner?.playerId === myId) {
+        playWin();
+      } else {
+        playLose();
+      }
+    }
+  }, [lobby.state, lobby.winner, role, myId]);
 }
 
 function ConnectedLobby({
@@ -137,14 +177,40 @@ function ConnectedLobby({
   const { lobby: liveLobby, status, lastError, send } = useLobbySocket(lobbyId, identity.id);
   const lobby = liveLobby ?? fallback;
   const inviteUrl = `${window.location.origin}/lobby/${lobbyId}`;
+  const [muted, setMutedState] = useState(() => isMuted());
+
+  const countdownValue = useCountdown(lobby.countdownEndsAt, (seconds) => {
+    if (seconds > 0) playTick();
+  });
+
+  useRoundSounds(lobby, identity.role, identity.id);
+
+  function toggleMute() {
+    const next = !muted;
+    setMuted(next);
+    setMutedState(next);
+  }
 
   return (
     <div className="lobby-page container">
       <header className="lobby-page__header">
         <div>
           <h1 className="lobby-page__title">{lobby.name}</h1>
-          <StatusDot state={lobby.state} />
+          <div className="lobby-page__meta">
+            <StatusDot state={lobby.state} />
+            <span className="lobby-page__round mono">Manche {lobby.roundNumber}</span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          className="lobby-page__mute"
+          onClick={toggleMute}
+          aria-label={muted ? "Activer le son" : "Couper le son"}
+          title={muted ? "Activer le son" : "Couper le son"}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
       </header>
 
       {status !== "open" && (
@@ -164,8 +230,10 @@ function ConnectedLobby({
             lobby={lobby}
             inviteUrl={inviteUrl}
             connected={status === "open"}
+            countdownValue={countdownValue}
             onReady={() => send({ type: "ready" })}
-            onOpen={() => send({ type: "open" })}
+            onOpen={() => send({ type: "open", seconds: COUNTDOWN_SECONDS })}
+            onNextRound={() => send({ type: "next_round" })}
           />
           <div className="lobby-page__roster">
             <h2 className="lobby-page__roster-title">Joueurs</h2>
@@ -182,6 +250,7 @@ function ConnectedLobby({
           <Buzzer
             state={buzzerState(lobby, identity.id, status === "open")}
             label={buzzerLabel(lobby, buzzerState(lobby, identity.id, status === "open"), status === "open")}
+            countdownValue={countdownValue}
             onPress={() => send({ type: "buzz", playerId: identity.id })}
           />
           <div className="lobby-page__roster">
@@ -192,6 +261,7 @@ function ConnectedLobby({
               hostId={lobby.hostId}
               currentPlayerId={identity.id}
             />
+            <Scoreboard scores={lobby.scores} currentPlayerId={identity.id} />
           </div>
         </div>
       )}

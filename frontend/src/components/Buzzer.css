@@ -52,7 +52,33 @@
   pointer-events: none;
 }
 
+.buzzer__countdown {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  color: var(--text);
+  line-height: 1;
+  animation: countdown-pop 320ms ease-out;
+}
+
 /* --- state colors: these carry meaning, not decoration --- */
+
+.buzzer--countdown .buzzer__face {
+  background: radial-gradient(circle at 38% 28%, var(--panel-raised), var(--idle-dim) 75%);
+  box-shadow:
+    0 0 40px 8px rgba(139, 147, 167, 0.25),
+    inset 0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes countdown-pop {
+  from {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 
 .buzzer--go .buzzer__face {
   background: radial-gradient(circle at 38% 28%, var(--go), var(--go-strong) 75%);
@@ -102,6 +128,10 @@
 
 .buzzer--go .buzzer__label {
   color: var(--go);
+}
+
+.buzzer--countdown .buzzer__label {
+  color: var(--chrome);
 }
 
 .buzzer--win .buzzer__label {

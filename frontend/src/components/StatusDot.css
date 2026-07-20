@@ -25,6 +25,15 @@
   background: var(--chrome);
 }
 
+.status-dot--countdown .status-dot__mark {
+  background: var(--chrome);
+  animation: dot-pulse 0.6s ease-in-out infinite;
+}
+
+.status-dot--countdown {
+  color: var(--text);
+}
+
 .status-dot--open .status-dot__mark {
   background: var(--go);
   box-shadow: 0 0 8px 2px var(--go-glow);

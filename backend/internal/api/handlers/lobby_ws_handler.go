@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api/dto"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
@@ -66,10 +67,7 @@ func (h *LobbyWSHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		Lobby: lobbyResponse(l),
 	})
 
-	h.hub.Broadcast(lobbyID, wsOutbound{
-		Type:  "lobby_update",
-		Lobby: lobbyResponse(l),
-	})
+	h.broadcastLobby(lobbyID, l)
 }
 
 func (h *LobbyWSHandler) handleMessage(lobbyID string, l *lobby.Lobby, c *ws.Client, msg ws.Inbound) {
@@ -85,16 +83,15 @@ func (h *LobbyWSHandler) handleMessage(lobbyID string, l *lobby.Lobby, c *ws.Cli
 			return
 		}
 
+		h.broadcastLobby(lobbyID, l)
+
 	case "open":
 		if msg.PlayerID != l.HostID {
 			c.Send(wsOutbound{Type: "error", Error: "only the host can open the buzzer"})
 			return
 		}
 
-		if err := l.OpenBuzz(); err != nil {
-			c.Send(wsOutbound{Type: "error", Error: err.Error()})
-			return
-		}
+		h.handleOpen(lobbyID, l, c, msg.Seconds)
 
 	case "buzz":
 		if _, err := l.Buzz(msg.PlayerID); err != nil {
@@ -102,11 +99,76 @@ func (h *LobbyWSHandler) handleMessage(lobbyID string, l *lobby.Lobby, c *ws.Cli
 			return
 		}
 
+		h.broadcastLobby(lobbyID, l)
+
+	case "next_round":
+		if msg.PlayerID != l.HostID {
+			c.Send(wsOutbound{Type: "error", Error: "only the host can start the next round"})
+			return
+		}
+
+		if _, err := l.NextRound(); err != nil {
+			c.Send(wsOutbound{Type: "error", Error: err.Error()})
+			return
+		}
+
+		h.broadcastLobby(lobbyID, l)
+
 	default:
 		c.Send(wsOutbound{Type: "error", Error: "unknown message type"})
+	}
+}
+
+// handleOpen either opens the buzzer immediately (seconds <= 0) or
+// schedules it to open after a countdown, broadcasting the countdown
+// state right away so every client can render the same "3, 2, 1" using a
+// shared server-clock end time. The actual open transition then happens
+// on a server-side timer, independent of any specific client still being
+// connected — this keeps the countdown fair (everyone's buzzer becomes
+// live at the same instant) regardless of per-client latency.
+func (h *LobbyWSHandler) handleOpen(lobbyID string, l *lobby.Lobby, c *ws.Client, seconds int) {
+	if seconds <= 0 {
+		if err := l.OpenBuzz(); err != nil {
+			c.Send(wsOutbound{Type: "error", Error: err.Error()})
+			return
+		}
+
+		h.broadcastLobby(lobbyID, l)
 		return
 	}
 
+	if seconds < lobby.MinCountdownSeconds {
+		seconds = lobby.MinCountdownSeconds
+	}
+
+	if seconds > lobby.MaxCountdownSeconds {
+		seconds = lobby.MaxCountdownSeconds
+	}
+
+	duration := time.Duration(seconds) * time.Second
+	endsAt := time.Now().Add(duration)
+
+	if err := l.StartCountdown(endsAt); err != nil {
+		c.Send(wsOutbound{Type: "error", Error: err.Error()})
+		return
+	}
+
+	h.broadcastLobby(lobbyID, l)
+
+	time.AfterFunc(duration, func() {
+		updated, err := h.service.OpenBuzz(lobbyID)
+
+		if err != nil {
+			// Lobby may have been deleted (cleanup, restart) in the
+			// meantime; nothing to broadcast to.
+			return
+		}
+
+		h.broadcastLobby(lobbyID, updated)
+	})
+}
+
+func (h *LobbyWSHandler) broadcastLobby(lobbyID string, l *lobby.Lobby) {
 	h.hub.Broadcast(lobbyID, wsOutbound{
 		Type:  "lobby_update",
 		Lobby: lobbyResponse(l),
