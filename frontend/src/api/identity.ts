@@ -12,8 +12,24 @@ function playerKey(lobbyId: string) {
   return `buzzer:player:${lobbyId}`;
 }
 
+// crypto.randomUUID() is only available in secure contexts (HTTPS or
+// localhost). When the app is served over plain HTTP on a LAN IP we fall
+// back to a Math.random-based v4 UUID. It is not cryptographically strong
+// but is more than sufficient for ephemeral lobby/player IDs.
 export function newId(): string {
-  return crypto.randomUUID();
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  // RFC-4122 v4 UUID fallback
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export function rememberHost(lobbyId: string, hostId: string) {
