@@ -31,6 +31,18 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Start Backend in Background
+        run: |
+          cd backend
+          go run main.go &
+          # Give the server a second to start up on port 8080
+          sleep 3
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
