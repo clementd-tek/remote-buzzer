@@ -56,19 +56,13 @@ func NewHub(logger *slog.Logger, allowedOrigins []string) *Hub {
 func (h *Hub) checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 
+	// Non-browser clients (curl, server-to-server) don't send an Origin
+	// header — always allow them.
 	if origin == "" {
 		return true
 	}
 
-	if originpolicy.IsLocal(origin) {
-		return true
-	}
-
-	if len(h.allowedOrigins) == 0 {
-		return true
-	}
-
-	if h.allowedOrigins[origin] {
+	if originpolicy.IsAllowed(origin, h.allowedOrigins) {
 		return true
 	}
 
