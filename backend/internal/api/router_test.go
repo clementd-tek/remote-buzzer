@@ -201,13 +201,18 @@ func TestWebsocketBuzzFlow(t *testing.T) {
 	}
 	defer playerConn.Close()
 
-	// Host readies the lobby and opens the buzzer. waitForState skips
-	// over the initial connection snapshots (their exact count varies
-	// depending on connection order) and waits for the state we want.
+	// Host readies the lobby. Configure instant open (no countdown) so
+	// the test doesn't have to wait for a timer to fire.
 	if err := hostConn.WriteJSON(map[string]string{"type": "ready"}); err != nil {
 		t.Fatal(err)
 	}
 	waitForState(t, hostConn, "ready")
+
+	zero := 0
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "countdownSeconds": zero}); err != nil {
+		t.Fatal(err)
+	}
+	waitForSettings(t, hostConn, 0)
 
 	if err := hostConn.WriteJSON(map[string]string{"type": "open"}); err != nil {
 		t.Fatal(err)
@@ -265,16 +270,24 @@ func TestWebsocketCountdownAndMultipleRounds(t *testing.T) {
 	}
 	defer playerConn.Close()
 
-	// --- Round 1: open with a 1-second countdown ---
+	// --- Round 1: configure a 1-second countdown via settings, then open ---
 
 	if err := hostConn.WriteJSON(map[string]string{"type": "ready"}); err != nil {
 		t.Fatal(err)
 	}
 	waitForState(t, hostConn, "ready")
 
+	// Set a 1-second countdown via the new settings action.
+	one := 1
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "countdownSeconds": one}); err != nil {
+		t.Fatal(err)
+	}
+	// Wait for the settings broadcast to arrive before proceeding.
+	waitForSettings(t, hostConn, 1)
+
 	before := time.Now()
 
-	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 1}); err != nil {
+	if err := hostConn.WriteJSON(map[string]string{"type": "open"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -318,9 +331,15 @@ func TestWebsocketCountdownAndMultipleRounds(t *testing.T) {
 		t.Fatalf("expected round 1 in history with p1 as winner, got %+v", afterRound1.Lobby.History)
 	}
 
-	// --- Round 2: instant open (no countdown), p2 wins this time ---
+	// --- Round 2: switch to instant open (0-second countdown) via settings, p2 wins ---
 
-	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 0}); err != nil {
+	zero := 0
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "countdownSeconds": zero}); err != nil {
+		t.Fatal(err)
+	}
+	waitForSettings(t, hostConn, 0)
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "open"}); err != nil {
 		t.Fatal(err)
 	}
 	waitForState(t, hostConn, "open")
@@ -393,7 +412,13 @@ func TestWebsocketNonHostCannotStartNextRound(t *testing.T) {
 	}
 	waitForState(t, hostConn, "ready")
 
-	if err := hostConn.WriteJSON(map[string]any{"type": "open", "seconds": 0}); err != nil {
+	zero := 0
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "countdownSeconds": zero}); err != nil {
+		t.Fatal(err)
+	}
+	waitForSettings(t, hostConn, 0)
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "open"}); err != nil {
 		t.Fatal(err)
 	}
 	waitForState(t, hostConn, "open")
@@ -440,9 +465,25 @@ func readUpdate(t *testing.T, conn *websocket.Conn) testOutbound {
 	return msg
 }
 
-// waitForState reads messages off conn until it sees a lobby_update whose
-// state matches want, skipping unrelated broadcasts triggered by the
-// other connected client.
+// waitForSettings reads messages off conn until it sees a lobby_update
+// whose settings.countdownSeconds matches want.
+func waitForSettings(t *testing.T, conn *websocket.Conn, wantCountdown int) testOutbound {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for time.Now().Before(deadline) {
+		msg := readUpdate(t, conn)
+
+		if msg.Type == "lobby_update" && msg.Lobby != nil && msg.Lobby.Settings.CountdownSeconds == wantCountdown {
+			return msg
+		}
+	}
+
+	t.Fatalf("never observed settings with countdownSeconds=%d", wantCountdown)
+
+	return testOutbound{}
+}
 func waitForState(t *testing.T, conn *websocket.Conn, want string) testOutbound {
 	t.Helper()
 
@@ -459,4 +500,163 @@ func waitForState(t *testing.T, conn *websocket.Conn, want string) testOutbound 
 	t.Fatalf("never observed state %q", want)
 
 	return testOutbound{}
+}
+
+// TestWebsocketSettings verifies that a host can change both settings
+// fields (points and countdown) over websocket, that the broadcast
+// reflects the new values, that a non-host can't change them, and that
+// the settings can't be changed while a round is in progress.
+func TestWebsocketSettings(t *testing.T) {
+	router := newTestRouter()
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	rec := doJSON(t, router, http.MethodPost, "/api/lobbies", map[string]any{
+		"name": "Settings Test", "hostId": "host1", "public": true,
+	})
+
+	var created dto.LobbyResponse
+	json.Unmarshal(rec.Body.Bytes(), &created)
+
+	doJSON(t, router, http.MethodPost, "/api/lobbies/"+created.ID+"/join", map[string]any{
+		"id": "p1", "name": "Alice",
+	})
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/lobbies/" + created.ID + "/ws"
+
+	hostConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=host1", nil)
+	if err != nil {
+		t.Fatalf("host dial: %v", err)
+	}
+	defer hostConn.Close()
+
+	playerConn, _, err := websocket.DefaultDialer.Dial(wsURL+"?playerId=p1", nil)
+	if err != nil {
+		t.Fatalf("player dial: %v", err)
+	}
+	defer playerConn.Close()
+
+	// --- Host changes both settings ---
+	five := 5
+	ten := 10
+	if err := hostConn.WriteJSON(map[string]any{
+		"type":             "settings",
+		"pointsPerRound":   five,
+		"countdownSeconds": ten,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	upd := waitForSettings(t, hostConn, 10)
+	if upd.Lobby.Settings.PointsPerRound != 5 {
+		t.Fatalf("expected 5 points, got %d", upd.Lobby.Settings.PointsPerRound)
+	}
+
+	// --- Non-host cannot change settings ---
+	// Drain any broadcasts that may arrive on the player conn before
+	// sending the unauthorized request.
+	if err := playerConn.WriteJSON(map[string]any{"type": "settings", "pointsPerRound": 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Keep reading until we get an error message (not a lobby_update).
+	playerConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	gotError := false
+	for !gotError {
+		var msg testOutbound
+		if err := playerConn.ReadJSON(&msg); err != nil {
+			t.Fatalf("expected error response: %v", err)
+		}
+		if msg.Type == "error" {
+			gotError = true
+		}
+		// skip lobby_update broadcasts
+	}
+	if !gotError {
+		t.Fatal("expected an error for non-host settings change")
+	}
+
+	// --- Settings are locked once a round is in flight ---
+	if err := hostConn.WriteJSON(map[string]string{"type": "ready"}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "ready")
+
+	// Open with 0-second countdown so we go straight to "open".
+	zero := 0
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "countdownSeconds": zero}); err != nil {
+		t.Fatal(err)
+	}
+	waitForSettings(t, hostConn, 0)
+
+	if err := hostConn.WriteJSON(map[string]string{"type": "open"}); err != nil {
+		t.Fatal(err)
+	}
+	waitForState(t, hostConn, "open")
+
+	// Attempt to change settings while open — must be rejected.
+	if err := hostConn.WriteJSON(map[string]any{"type": "settings", "pointsPerRound": 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	hostConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	gotLockError := false
+	for !gotLockError {
+		var lockMsg testOutbound
+		if err := hostConn.ReadJSON(&lockMsg); err != nil {
+			t.Fatalf("expected locked error: %v", err)
+		}
+		if lockMsg.Type == "error" {
+			gotLockError = true
+		}
+	}
+	if !gotLockError {
+		t.Fatal("expected an error for settings change while open")
+	}
+}
+
+// TestCreateLobbyWithCustomSettings verifies that initial settings can be
+// baked in when creating a lobby via REST.
+func TestCreateLobbyWithCustomSettings(t *testing.T) {
+	router := newTestRouter()
+
+	rec := doJSON(t, router, http.MethodPost, "/api/lobbies", map[string]any{
+		"name": "Custom Settings", "hostId": "host1", "public": true,
+		"settings": map[string]any{
+			"pointsPerRound":   5,
+			"countdownSeconds": 10,
+		},
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var created dto.LobbyResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	if created.Settings.PointsPerRound != 5 {
+		t.Fatalf("expected 5 points, got %d", created.Settings.PointsPerRound)
+	}
+
+	if created.Settings.CountdownSeconds != 10 {
+		t.Fatalf("expected 10s countdown, got %d", created.Settings.CountdownSeconds)
+	}
+}
+
+// TestCreateLobbyWithInvalidSettings ensures the REST layer validates
+// initial settings and returns a 400 for out-of-range values.
+func TestCreateLobbyWithInvalidSettings(t *testing.T) {
+	router := newTestRouter()
+
+	rec := doJSON(t, router, http.MethodPost, "/api/lobbies", map[string]any{
+		"name": "Bad Settings", "hostId": "host1", "public": true,
+		"settings": map[string]any{"pointsPerRound": 999},
+	})
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid settings, got %d", rec.Code)
+	}
 }

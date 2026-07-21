@@ -37,7 +37,7 @@ func TestManagerAddSyncsToCache(t *testing.T) {
 	cache := newFakeCache()
 	manager := lobby.NewManager(cache, discardLogger())
 
-	l := lobby.New("abc", "test", "host", true)
+	l := lobby.New("abc", "test", "host", true, lobby.DefaultSettings())
 	manager.Add(l)
 
 	waitUntil(t, time.Second, func() bool { return cache.has("abc") })
@@ -47,7 +47,7 @@ func TestManagerDeleteRemovesFromCache(t *testing.T) {
 	cache := newFakeCache()
 	manager := lobby.NewManager(cache, discardLogger())
 
-	l := lobby.New("abc", "test", "host", true)
+	l := lobby.New("abc", "test", "host", true, lobby.DefaultSettings())
 	manager.Add(l)
 
 	waitUntil(t, time.Second, func() bool { return cache.has("abc") })
@@ -64,7 +64,7 @@ func TestManagerDeleteRemovesFromCache(t *testing.T) {
 func TestManagerHydrateRestoresDirectoryFromCache(t *testing.T) {
 	cache := newFakeCache()
 
-	seed := lobby.New("abc", "test", "host", true)
+	seed := lobby.New("abc", "test", "host", true, lobby.DefaultSettings())
 	if err := cache.Save(context.Background(), seed.Snapshot()); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestManagerCleanupEvictsStaleLobbies(t *testing.T) {
 	cache := newFakeCache()
 	manager := lobby.NewManager(cache, discardLogger())
 
-	manager.Add(lobby.New("stale", "old", "host", true))
+	manager.Add(lobby.New("stale", "old", "host", true, lobby.DefaultSettings()))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

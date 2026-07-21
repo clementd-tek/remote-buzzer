@@ -30,9 +30,18 @@ func NewLobbyHandler(service *lobby.Service, hub *ws.Hub) *LobbyHandler {
 }
 
 type createLobbyRequest struct {
-	Name   string `json:"name"`
-	HostID string `json:"hostId"`
-	Public bool   `json:"public"`
+	Name     string            `json:"name"`
+	HostID   string            `json:"hostId"`
+	Public   bool              `json:"public"`
+	Settings *lobbySettingsReq `json:"settings,omitempty"`
+}
+
+// lobbySettingsReq is the JSON shape for initial/updated settings.
+// Using pointers here so clients can omit fields they don't want to
+// change (treated as "keep the current/default value").
+type lobbySettingsReq struct {
+	PointsPerRound   *int `json:"pointsPerRound,omitempty"`
+	CountdownSeconds *int `json:"countdownSeconds,omitempty"`
 }
 
 // statusForError maps a domain error to the HTTP status code that best
@@ -43,7 +52,9 @@ func statusForError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, lobby.ErrInvalidName),
 		errors.Is(err, lobby.ErrInvalidID),
-		errors.Is(err, lobby.ErrRoundInProgress):
+		errors.Is(err, lobby.ErrRoundInProgress),
+		errors.Is(err, lobby.ErrInvalidSettings),
+		errors.Is(err, lobby.ErrSettingsLocked):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError
@@ -63,13 +74,32 @@ func (h *LobbyHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.service.Create(
-		lobby.CreateLobbyRequest{
-			Name:   req.Name,
-			HostID: req.HostID,
-			Public: req.Public,
-		},
-	)
+	createReq := lobby.CreateLobbyRequest{
+		Name:   req.Name,
+		HostID: req.HostID,
+		Public: req.Public,
+	}
+
+	if req.Settings != nil {
+		defaults := lobby.DefaultSettings()
+
+		settings := lobby.LobbySettings{
+			PointsPerRound:   defaults.PointsPerRound,
+			CountdownSeconds: defaults.CountdownSeconds,
+		}
+
+		if req.Settings.PointsPerRound != nil {
+			settings.PointsPerRound = *req.Settings.PointsPerRound
+		}
+
+		if req.Settings.CountdownSeconds != nil {
+			settings.CountdownSeconds = *req.Settings.CountdownSeconds
+		}
+
+		createReq.Settings = &settings
+	}
+
+	result, err := h.service.Create(createReq)
 
 	if err != nil {
 		http.Error(

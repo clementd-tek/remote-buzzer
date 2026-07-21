@@ -9,10 +9,9 @@ import { JoinForm } from "../components/JoinForm";
 import { PlayerRoster } from "../components/PlayerRoster";
 import { Scoreboard } from "../components/Scoreboard";
 import { StatusDot } from "../components/StatusDot";
-import { COUNTDOWN_SECONDS } from "../constants";
 import { useCountdown } from "../hooks/useCountdown";
 import { useLobbySocket } from "../hooks/useLobbySocket";
-import type { Lobby, LobbyState } from "../types/lobby";
+import type { Lobby, LobbySettings, LobbyState } from "../types/lobby";
 import "./LobbyPage.css";
 
 type Identity = { role: "host"; id: string } | { role: "player"; id: string };
@@ -51,11 +50,9 @@ export function LobbyPage() {
       })
       .catch((err) => {
         if (cancelled) return;
-
         if (err instanceof ApiError && err.status === 404) {
           setNotFound(true);
         }
-
         setCheckingIdentity(false);
       });
 
@@ -132,13 +129,6 @@ function buzzerLabel(lobby: Lobby, state: BuzzerVisualState, connected: boolean)
   }
 }
 
-/**
- * Plays a sound whenever the lobby's state actually transitions (not on
- * every broadcast — plenty of those don't change state, e.g. someone
- * else joining while we're still waiting). Skips the very first snapshot
- * so refreshing mid-round doesn't fire a sound for a transition that
- * didn't just happen.
- */
 function useRoundSounds(lobby: Lobby, role: "host" | "player", myId: string) {
   const prevState = useRef<LobbyState | null>(null);
 
@@ -191,6 +181,14 @@ function ConnectedLobby({
     setMutedState(next);
   }
 
+  function handleSettingsChange(update: Partial<LobbySettings>) {
+    send({
+      type: "settings",
+      ...(update.pointsPerRound !== undefined && { pointsPerRound: update.pointsPerRound }),
+      ...(update.countdownSeconds !== undefined && { countdownSeconds: update.countdownSeconds }),
+    });
+  }
+
   return (
     <div className="lobby-page container">
       <header className="lobby-page__header">
@@ -217,7 +215,7 @@ function ConnectedLobby({
         <div className={`lobby-page__connection lobby-page__connection--${status}`}>
           {status === "connecting" && "Connexion en temps réel…"}
           {status === "reconnecting" &&
-            "Connexion en temps réel perdue — nouvelle tentative en cours. Les données ci-dessous peuvent être en retard."}
+            "Connexion perdue — reconnexion en cours. Les données peuvent être en retard."}
           {status === "closed" && "Déconnecté."}
         </div>
       )}
@@ -232,8 +230,9 @@ function ConnectedLobby({
             connected={status === "open"}
             countdownValue={countdownValue}
             onReady={() => send({ type: "ready" })}
-            onOpen={() => send({ type: "open", seconds: COUNTDOWN_SECONDS })}
+            onOpen={() => send({ type: "open" })}
             onNextRound={() => send({ type: "next_round" })}
+            onSettingsChange={handleSettingsChange}
           />
           <div className="lobby-page__roster">
             <h2 className="lobby-page__roster-title">Joueurs</h2>

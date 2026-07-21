@@ -17,9 +17,10 @@ func NewService(manager *Manager) *Service {
 }
 
 type CreateLobbyRequest struct {
-	Name   string
-	HostID string
-	Public bool
+	Name     string
+	HostID   string
+	Public   bool
+	Settings *LobbySettings // nil → use DefaultSettings()
 }
 
 func (s *Service) Create(req CreateLobbyRequest) (*Lobby, error) {
@@ -31,11 +32,22 @@ func (s *Service) Create(req CreateLobbyRequest) (*Lobby, error) {
 		return nil, err
 	}
 
+	settings := DefaultSettings()
+
+	if req.Settings != nil {
+		if err := ValidateSettings(*req.Settings); err != nil {
+			return nil, err
+		}
+
+		settings = *req.Settings
+	}
+
 	l := New(
 		uuid.New().String(),
 		req.Name,
 		req.HostID,
 		req.Public,
+		settings,
 	)
 
 	s.manager.Add(l)
@@ -53,8 +65,7 @@ func (s *Service) List() []*Lobby {
 	return s.manager.List()
 }
 
-// ListPublic returns only lobbies created with Public: true, which is
-// what an unauthenticated homepage should ever display.
+// ListPublic returns only lobbies created with Public: true.
 func (s *Service) ListPublic() []*Lobby {
 	all := s.manager.List()
 	public := make([]*Lobby, 0, len(all))
@@ -92,8 +103,7 @@ func (s *Service) Join(lobbyID string, player *Player) error {
 	return nil
 }
 
-// SetReady moves a lobby from waiting to ready, so the host can then open
-// the buzzer for a round.
+// SetReady moves a lobby from waiting to ready.
 func (s *Service) SetReady(lobbyID string) (*Lobby, error) {
 	l, err := s.manager.Get(lobbyID)
 
@@ -102,6 +112,24 @@ func (s *Service) SetReady(lobbyID string) (*Lobby, error) {
 	}
 
 	if err := l.SetReady(); err != nil {
+		return nil, err
+	}
+
+	s.manager.Touch(l)
+
+	return l, nil
+}
+
+// UpdateSettings applies a partial settings patch to the lobby. Only
+// allowed while nothing is in flight (waiting or between rounds).
+func (s *Service) UpdateSettings(lobbyID string, update SettingsUpdate) (*Lobby, error) {
+	l, err := s.manager.Get(lobbyID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := l.UpdateSettings(update); err != nil {
 		return nil, err
 	}
 
@@ -127,7 +155,7 @@ func (s *Service) StartCountdown(lobbyID string, endsAt time.Time) (*Lobby, erro
 	return l, nil
 }
 
-// OpenBuzz opens the buzzer for a round, allowing players to buzz in.
+// OpenBuzz opens the buzzer for a round.
 func (s *Service) OpenBuzz(lobbyID string) (*Lobby, error) {
 	l, err := s.manager.Get(lobbyID)
 
@@ -161,8 +189,7 @@ func (s *Service) Buzz(lobbyID string, playerID string) (*Lobby, error) {
 	return l, nil
 }
 
-// NextRound closes out the finished round (awarding points and recording
-// history) and resets the lobby to StateReady for another round.
+// NextRound closes out the finished round and resets to StateReady.
 func (s *Service) NextRound(lobbyID string) (*Lobby, error) {
 	l, err := s.manager.Get(lobbyID)
 

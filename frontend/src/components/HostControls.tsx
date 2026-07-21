@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { COUNTDOWN_SECONDS } from "../constants";
-import type { Lobby } from "../types/lobby";
+import type { Lobby, LobbySettings } from "../types/lobby";
 import { Scoreboard } from "./Scoreboard";
+import { SettingsPanel } from "./SettingsPanel";
 import "./HostControls.css";
 
 interface HostControlsProps {
@@ -12,6 +12,7 @@ interface HostControlsProps {
   onReady: () => void;
   onOpen: () => void;
   onNextRound: () => void;
+  onSettingsChange: (update: Partial<LobbySettings>) => void;
 }
 
 export function HostControls({
@@ -22,6 +23,7 @@ export function HostControls({
   onReady,
   onOpen,
   onNextRound,
+  onSettingsChange,
 }: HostControlsProps) {
   const [copied, setCopied] = useState(false);
 
@@ -31,14 +33,21 @@ export function HostControls({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard access can fail (permissions, insecure context); the
-      // link is still visible below for a manual copy.
+      // Clipboard access can fail; link is still visible for manual copy.
     }
   }
 
   const winnerName = lobby.winner
     ? lobby.players.find((p) => p.id === lobby.winner!.playerId)?.name
     : undefined;
+
+  // Settings can only be changed while waiting or between rounds.
+  const settingsLocked = lobby.state === "countdown" || lobby.state === "open" || lobby.state === "locked";
+
+  const countdownLabel =
+    lobby.settings.countdownSeconds === 0
+      ? "Instantané"
+      : `${lobby.settings.countdownSeconds}s`;
 
   return (
     <div className="host-controls">
@@ -52,6 +61,12 @@ export function HostControls({
         </div>
       </div>
 
+      <SettingsPanel
+        settings={lobby.settings}
+        disabled={settingsLocked}
+        onChange={onSettingsChange}
+      />
+
       <div className="host-controls__actions">
         <span className="host-controls__round mono">Manche {lobby.roundNumber}</span>
 
@@ -60,7 +75,7 @@ export function HostControls({
             <p>
               {lobby.playerCount === 0
                 ? "En attente du premier joueur…"
-                : `${lobby.playerCount} joueur${lobby.playerCount > 1 ? "s" : ""} prêt${lobby.playerCount > 1 ? "s" : ""}.`}
+                : `${lobby.playerCount} joueur${lobby.playerCount > 1 ? "s" : ""} connecté${lobby.playerCount > 1 ? "s" : ""}.`}
             </p>
             <button
               type="button"
@@ -75,21 +90,21 @@ export function HostControls({
 
         {lobby.state === "ready" && (
           <>
-            <p>Les inscriptions sont verrouillées. Prêt quand tu veux.</p>
+            <p>Inscriptions verrouillées. Prêt quand tu veux.</p>
             <button
               type="button"
               className="host-controls__primary host-controls__primary--go"
               onClick={onOpen}
               disabled={!connected}
             >
-              Lancer le buzzer ({COUNTDOWN_SECONDS}s)
+              Lancer le buzzer ({countdownLabel})
             </button>
           </>
         )}
 
         {lobby.state === "countdown" && (
           <p className="host-controls__countdown">
-            Compte à rebours : <strong>{countdownValue ?? COUNTDOWN_SECONDS}</strong>
+            Compte à rebours : <strong>{countdownValue ?? lobby.settings.countdownSeconds}</strong>
           </p>
         )}
 

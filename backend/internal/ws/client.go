@@ -19,9 +19,10 @@ const (
 type Inbound struct {
 	Type     string `json:"type"`
 	PlayerID string `json:"playerId,omitempty"`
-	// Seconds is the countdown duration for an "open" message. Zero or
-	// omitted means open immediately with no countdown.
-	Seconds int `json:"seconds,omitempty"`
+
+	// Settings fields — only read for type == "settings".
+	PointsPerRound   *int `json:"pointsPerRound,omitempty"`
+	CountdownSeconds *int `json:"countdownSeconds,omitempty"`
 }
 
 // Client represents a single websocket connection belonging to a player

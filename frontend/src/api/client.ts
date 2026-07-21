@@ -40,6 +40,7 @@ export interface CreateLobbyInput {
   name: string;
   hostId: string;
   public: boolean;
+  settings?: { pointsPerRound?: number; countdownSeconds?: number };
 }
 
 export function createLobby(input: CreateLobbyInput): Promise<Lobby> {

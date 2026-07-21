@@ -6,19 +6,27 @@ import (
 	"github.com/clementd-tek/remote-buzzer/backend/internal/lobby"
 )
 
+// LobbySettingsResponse is the host-configurable per-lobby rules exposed
+// over the API.
+type LobbySettingsResponse struct {
+	PointsPerRound   int `json:"pointsPerRound"`
+	CountdownSeconds int `json:"countdownSeconds"`
+}
+
 type LobbyResponse struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	Public          bool             `json:"public"`
-	State           string           `json:"state"`
-	HostID          string           `json:"hostId"`
-	PlayerCount     int              `json:"playerCount"`
-	Players         []PlayerResponse `json:"players"`
-	Winner          *WinnerResponse  `json:"winner,omitempty"`
-	RoundNumber     int              `json:"roundNumber"`
-	CountdownEndsAt *time.Time       `json:"countdownEndsAt,omitempty"`
-	Scores          []ScoreResponse  `json:"scores"`
-	History         []RoundResponse  `json:"history"`
+	ID              string                `json:"id"`
+	Name            string                `json:"name"`
+	Public          bool                  `json:"public"`
+	State           string                `json:"state"`
+	HostID          string                `json:"hostId"`
+	PlayerCount     int                   `json:"playerCount"`
+	Players         []PlayerResponse      `json:"players"`
+	Winner          *WinnerResponse       `json:"winner,omitempty"`
+	RoundNumber     int                   `json:"roundNumber"`
+	CountdownEndsAt *time.Time            `json:"countdownEndsAt,omitempty"`
+	Scores          []ScoreResponse       `json:"scores"`
+	History         []RoundResponse       `json:"history"`
+	Settings        LobbySettingsResponse `json:"settings"`
 }
 
 type WinnerResponse struct {
@@ -26,16 +34,12 @@ type WinnerResponse struct {
 	Time     time.Time `json:"time"`
 }
 
-// ScoreResponse is one player's cumulative points, sorted descending by
-// the backend before being sent (see lobby.Lobby.Snapshot).
 type ScoreResponse struct {
 	PlayerID string `json:"playerId"`
 	Name     string `json:"name"`
 	Points   int    `json:"points"`
 }
 
-// RoundResponse is the outcome of one finished round, used to render a
-// short "previous rounds" recap.
 type RoundResponse struct {
 	Round      int       `json:"round"`
 	WinnerID   string    `json:"winnerId"`
@@ -80,6 +84,10 @@ func FromLobby(l lobby.LobbySnapshot) LobbyResponse {
 		RoundNumber: l.RoundNumber,
 		Scores:      scores,
 		History:     history,
+		Settings: LobbySettingsResponse{
+			PointsPerRound:   l.Settings.PointsPerRound,
+			CountdownSeconds: l.Settings.CountdownSeconds,
+		},
 	}
 
 	if l.Winner != nil {

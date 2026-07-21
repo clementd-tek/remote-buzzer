@@ -44,6 +44,7 @@ function baseLobby(overrides: Partial<Lobby>): Lobby {
     roundNumber: 1,
     scores: [],
     history: [],
+    settings: { pointsPerRound: 1, countdownSeconds: 3 },
     ...overrides,
   };
 }
@@ -110,7 +111,7 @@ test("host sees a next-round button and the scoreboard once a round is locked", 
   expect(send).toHaveBeenCalledWith({ type: "next_round" });
 });
 
-test("host open button sends the shared countdown duration", async () => {
+test("host open button sends open without a seconds field (countdown comes from lobby settings)", async () => {
   const created = await createLobby({ name: "Open Test", hostId: "host1", public: true });
   await joinLobby(created.id, { id: "p1", name: "Alice" });
   rememberHost(created.id, "host1");
@@ -126,7 +127,10 @@ test("host open button sends the shared countdown duration", async () => {
   const openButton = await screen.findByRole("button", { name: /lancer le buzzer/i });
   openButton.click();
 
-  expect(send).toHaveBeenCalledWith({ type: "open", seconds: 3 });
+  // The countdown duration is now a lobby setting, not a field on the
+  // open message. The "open" action just tells the server to use whatever
+  // countdownSeconds is configured.
+  expect(send).toHaveBeenCalledWith({ type: "open" });
 });
 
 test("player sees the countdown number on the buzzer, then win framing once locked in their favor", async () => {

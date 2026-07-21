@@ -21,16 +21,17 @@ const (
 	// clients.
 	MaxNameLength = 60
 
-	// PointsPerRound is how many points a round win is worth. Kept as a
-	// single constant rather than a per-lobby setting to keep the
-	// scoring model simple; revisit if hosts ever need custom scoring.
-	PointsPerRound = 1
+	// DefaultPointsPerRound and DefaultCountdownSeconds are used when a
+	// lobby is created without explicit settings.
+	DefaultPointsPerRound   = 1
+	DefaultCountdownSeconds = 3
 
-	// MinCountdownSeconds and MaxCountdownSeconds bound what a host can
-	// ask for when opening a round, so a malformed or malicious client
-	// message can't schedule a countdown that never ends (or ends
-	// instantly and defeats the point of having one).
-	MinCountdownSeconds = 1
+	// MaxPointsPerRound bounds how many points a single round can be
+	// worth. Zero is allowed (play with no scoring at all).
+	MaxPointsPerRound = 20
+
+	// MaxCountdownSeconds bounds how long a host can make the pre-buzz
+	// countdown. Zero is allowed (open instantly, no countdown).
 	MaxCountdownSeconds = 30
 )
 
@@ -42,7 +43,47 @@ var (
 	ErrInvalidName      = errors.New("name must not be empty")
 	ErrInvalidID        = errors.New("id must not be empty")
 	ErrRoundNotFinished = errors.New("current round has not finished yet")
+	ErrInvalidSettings  = errors.New("invalid lobby settings")
+	ErrSettingsLocked   = errors.New("settings can't change once a round is underway")
 )
+
+// LobbySettings are the host-configurable rules for a lobby: how many
+// points a round win is worth, and how long the pre-buzz countdown runs.
+type LobbySettings struct {
+	PointsPerRound   int
+	CountdownSeconds int
+}
+
+// DefaultSettings returns the settings used when a lobby is created
+// without explicit ones.
+func DefaultSettings() LobbySettings {
+	return LobbySettings{
+		PointsPerRound:   DefaultPointsPerRound,
+		CountdownSeconds: DefaultCountdownSeconds,
+	}
+}
+
+// ValidateSettings checks that settings are within the bounds the rest
+// of the package assumes.
+func ValidateSettings(s LobbySettings) error {
+	if s.PointsPerRound < 0 || s.PointsPerRound > MaxPointsPerRound {
+		return ErrInvalidSettings
+	}
+
+	if s.CountdownSeconds < 0 || s.CountdownSeconds > MaxCountdownSeconds {
+		return ErrInvalidSettings
+	}
+
+	return nil
+}
+
+// SettingsUpdate patches a subset of LobbySettings; a nil field means
+// "leave this one as it is", which lets a host change just the points or
+// just the countdown without needing to resend both.
+type SettingsUpdate struct {
+	PointsPerRound   *int
+	CountdownSeconds *int
+}
 
 type Player struct {
 	ID       string
@@ -80,6 +121,7 @@ type Lobby struct {
 	CountdownEndsAt *time.Time
 	Scores          map[string]int
 	History         []RoundRecord
+	Settings        LobbySettings
 }
 
 type LobbySnapshot struct {
@@ -96,6 +138,7 @@ type LobbySnapshot struct {
 	CountdownEndsAt *time.Time
 	Scores          []ScoreEntry
 	History         []RoundRecord
+	Settings        LobbySettings
 }
 
 // PlayerInfo is the public-facing view of a Player: enough to render a
@@ -114,7 +157,9 @@ type ScoreEntry struct {
 	Points   int
 }
 
-func New(id string, name string, hostID string, public bool) *Lobby {
+// New creates a lobby with the given settings. Use DefaultSettings() if
+// the caller doesn't have anything specific in mind.
+func New(id string, name string, hostID string, public bool, settings LobbySettings) *Lobby {
 	return &Lobby{
 		ID:          id,
 		Name:        name,
@@ -126,6 +171,7 @@ func New(id string, name string, hostID string, public bool) *Lobby {
 		RoundNumber: 1,
 		Scores:      make(map[string]int),
 		History:     make([]RoundRecord, 0),
+		Settings:    settings,
 	}
 }
 
@@ -134,8 +180,8 @@ func New(id string, name string, hostID string, public bool) *Lobby {
 // preserved: it is intentionally ephemeral, since a live game round is tied
 // to the websocket connections held by a single running process anyway.
 // The lobby directory (id, name, state, host, counts) does survive, and so
-// does game progress (round number, scores, history) since that's real
-// progress worth keeping rather than session plumbing.
+// does game progress (round number, scores, history, settings) since
+// that's real progress worth keeping rather than session plumbing.
 func Restore(snapshot LobbySnapshot) *Lobby {
 	scores := make(map[string]int, len(snapshot.Scores))
 
@@ -153,6 +199,11 @@ func Restore(snapshot LobbySnapshot) *Lobby {
 		history = make([]RoundRecord, 0)
 	}
 
+	settings := snapshot.Settings
+	if settings == (LobbySettings{}) {
+		settings = DefaultSettings()
+	}
+
 	return &Lobby{
 		ID:          snapshot.ID,
 		Name:        snapshot.Name,
@@ -165,6 +216,7 @@ func Restore(snapshot LobbySnapshot) *Lobby {
 		RoundNumber: roundNumber,
 		Scores:      scores,
 		History:     history,
+		Settings:    settings,
 	}
 }
 
@@ -218,6 +270,37 @@ func (l *Lobby) SetReady() error {
 	}
 
 	l.State = StateReady
+	l.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// UpdateSettings applies a partial settings update. Only allowed while
+// nothing is actively in flight (waiting or between rounds) so the
+// rules can't change out from under a round that's already running.
+func (l *Lobby) UpdateSettings(update SettingsUpdate) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.State != StateWaiting && l.State != StateReady {
+		return ErrSettingsLocked
+	}
+
+	next := l.Settings
+
+	if update.PointsPerRound != nil {
+		next.PointsPerRound = *update.PointsPerRound
+	}
+
+	if update.CountdownSeconds != nil {
+		next.CountdownSeconds = *update.CountdownSeconds
+	}
+
+	if err := ValidateSettings(next); err != nil {
+		return err
+	}
+
+	l.Settings = next
 	l.UpdatedAt = time.Now()
 
 	return nil
@@ -290,10 +373,11 @@ func (l *Lobby) Buzz(playerID string) (*BuzzResult, error) {
 }
 
 // NextRound closes out the current (finished) round — awarding points to
-// its winner and recording it in the round history — then resets the
-// lobby to StateReady with the same roster so the host can immediately
-// start another round. Returns the record of the round that just closed
-// (nil if nobody buzzed in that round, e.g. it was skipped).
+// its winner (per the lobby's configured PointsPerRound) and recording it
+// in the round history — then resets the lobby to StateReady with the
+// same roster so the host can immediately start another round. Returns
+// the record of the round that just closed (nil if nobody buzzed in that
+// round, e.g. it was skipped).
 func (l *Lobby) NextRound() (*RoundRecord, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -309,7 +393,8 @@ func (l *Lobby) NextRound() (*RoundRecord, error) {
 			l.Scores = make(map[string]int)
 		}
 
-		l.Scores[l.Winner.PlayerID] += PointsPerRound
+		points := l.Settings.PointsPerRound
+		l.Scores[l.Winner.PlayerID] += points
 
 		winnerName := ""
 		if p, ok := l.Players[l.Winner.PlayerID]; ok {
@@ -320,7 +405,7 @@ func (l *Lobby) NextRound() (*RoundRecord, error) {
 			Round:      l.RoundNumber,
 			WinnerID:   l.Winner.PlayerID,
 			WinnerName: winnerName,
-			Points:     PointsPerRound,
+			Points:     points,
 			ClosedAt:   time.Now(),
 		}
 
@@ -405,5 +490,6 @@ func (l *Lobby) Snapshot() LobbySnapshot {
 		CountdownEndsAt: countdownEndsAt,
 		Scores:          scores,
 		History:         history,
+		Settings:        l.Settings,
 	}
 }

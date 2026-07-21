@@ -1,15 +1,18 @@
 import { useState, type FormEvent } from "react";
+import { DEFAULT_SETTINGS, MAX_COUNTDOWN_SECONDS, MAX_POINTS_PER_ROUND, type LobbySettings } from "../types/lobby";
 import "./CreateLobbyForm.css";
 
 interface CreateLobbyFormProps {
-  onCreate: (name: string, isPublic: boolean) => Promise<void>;
+  onCreate: (name: string, isPublic: boolean, settings: LobbySettings) => Promise<void>;
 }
 
 export function CreateLobbyForm({ onCreate }: CreateLobbyFormProps) {
   const [name, setName] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [settings, setSettings] = useState<LobbySettings>(DEFAULT_SETTINGS);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -23,7 +26,7 @@ export function CreateLobbyForm({ onCreate }: CreateLobbyFormProps) {
     setError(null);
 
     try {
-      await onCreate(name.trim(), isPublic);
+      await onCreate(name.trim(), isPublic, settings);
     } catch {
       setError("Impossible de créer le lobby. Réessaie.");
     } finally {
@@ -56,6 +59,63 @@ export function CreateLobbyForm({ onCreate }: CreateLobbyFormProps) {
         />
         <span>Afficher sur la page d'accueil</span>
       </label>
+
+      {/* Collapsible advanced settings */}
+      <div className="create-form__advanced">
+        <button
+          type="button"
+          className="create-form__advanced-toggle"
+          onClick={() => setShowSettings((s) => !s)}
+          aria-expanded={showSettings}
+        >
+          <span>⚙ Règles du jeu</span>
+          <span>{showSettings ? "▲" : "▼"}</span>
+        </button>
+
+        {showSettings && (
+          <div className="create-form__settings-body">
+            <label className="create-form__setting">
+              <div className="create-form__setting-header">
+                <span>Points par manche</span>
+                <span className="mono create-form__setting-value">
+                  {settings.pointsPerRound} pt{settings.pointsPerRound > 1 ? "s" : ""}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={MAX_POINTS_PER_ROUND}
+                value={settings.pointsPerRound}
+                onChange={(e) => setSettings((s) => ({ ...s, pointsPerRound: Number(e.target.value) }))}
+              />
+              <div className="create-form__range-labels">
+                <span>0 (sans score)</span>
+                <span>{MAX_POINTS_PER_ROUND}</span>
+              </div>
+            </label>
+
+            <label className="create-form__setting">
+              <div className="create-form__setting-header">
+                <span>Compte à rebours</span>
+                <span className="mono create-form__setting-value">
+                  {settings.countdownSeconds === 0 ? "Instantané" : `${settings.countdownSeconds}s`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={MAX_COUNTDOWN_SECONDS}
+                value={settings.countdownSeconds}
+                onChange={(e) => setSettings((s) => ({ ...s, countdownSeconds: Number(e.target.value) }))}
+              />
+              <div className="create-form__range-labels">
+                <span>Instantané</span>
+                <span>{MAX_COUNTDOWN_SECONDS}s</span>
+              </div>
+            </label>
+          </div>
+        )}
+      </div>
 
       {error && <p className="create-form__error">{error}</p>}
 

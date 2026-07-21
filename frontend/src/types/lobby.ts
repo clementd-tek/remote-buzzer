@@ -24,6 +24,19 @@ export interface RoundResult {
   closedAt: string;
 }
 
+export interface LobbySettings {
+  pointsPerRound: number;
+  countdownSeconds: number;
+}
+
+export const DEFAULT_SETTINGS: LobbySettings = {
+  pointsPerRound: 1,
+  countdownSeconds: 3,
+};
+
+export const MAX_POINTS_PER_ROUND = 20;
+export const MAX_COUNTDOWN_SECONDS = 30;
+
 export interface Lobby {
   id: string;
   name: string;
@@ -37,14 +50,16 @@ export interface Lobby {
   countdownEndsAt?: string;
   scores: Score[];
   history: RoundResult[];
+  settings: LobbySettings;
 }
 
 /** Messages the client can send over the lobby websocket. */
 export type ClientMessage =
   | { type: "ready" }
-  | { type: "open"; seconds?: number }
+  | { type: "open" }
   | { type: "buzz"; playerId: string }
-  | { type: "next_round" };
+  | { type: "next_round" }
+  | { type: "settings"; pointsPerRound?: number; countdownSeconds?: number };
 
 /** Messages the server pushes down the lobby websocket. */
 export type ServerMessage =

@@ -4,7 +4,7 @@ import { createLobby, listPublicLobbies } from "../api/client";
 import { newId, rememberHost } from "../api/identity";
 import { CreateLobbyForm } from "../components/CreateLobbyForm";
 import { LobbyCard } from "../components/LobbyCard";
-import type { Lobby } from "../types/lobby";
+import type { Lobby, LobbySettings } from "../types/lobby";
 import "./HomePage.css";
 
 const POLL_INTERVAL_MS = 4000;
@@ -33,9 +33,9 @@ export function HomePage() {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  async function handleCreate(name: string, isPublic: boolean) {
+  async function handleCreate(name: string, isPublic: boolean, settings: LobbySettings) {
     const hostId = newId();
-    const lobby = await createLobby({ name, hostId, public: isPublic });
+    const lobby = await createLobby({ name, hostId, public: isPublic, settings });
     rememberHost(lobby.id, hostId);
     navigate(`/lobby/${lobby.id}`);
   }

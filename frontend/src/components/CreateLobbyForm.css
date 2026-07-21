@@ -53,6 +53,70 @@
   accent-color: var(--go);
 }
 
+.create-form__advanced {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.create-form__advanced-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--panel-raised);
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.create-form__advanced-toggle:hover {
+  color: var(--text);
+}
+
+.create-form__settings-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--hairline);
+  background: var(--stage);
+}
+
+.create-form__setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.create-form__setting-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.create-form__setting-value {
+  color: var(--go);
+  font-size: 0.82rem;
+}
+
+.create-form__setting input[type="range"] {
+  width: 100%;
+  accent-color: var(--go);
+}
+
+.create-form__range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
 .create-form__error {
   color: var(--lose);
   font-size: 0.85rem;

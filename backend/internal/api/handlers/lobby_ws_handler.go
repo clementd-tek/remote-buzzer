@@ -32,8 +32,7 @@ func NewLobbyWSHandler(service *lobby.Service, hub *ws.Hub) *LobbyWSHandler {
 }
 
 // Serve upgrades GET /api/lobbies/{id}/ws?playerId=... to a websocket
-// connection. Every player (and the host) connects here to receive live
-// lobby updates and to send buzzer actions.
+// connection.
 func (h *LobbyWSHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	lobbyID := chi.URLParam(r, "id")
 	playerID := r.URL.Query().Get("playerId")
@@ -91,7 +90,12 @@ func (h *LobbyWSHandler) handleMessage(lobbyID string, l *lobby.Lobby, c *ws.Cli
 			return
 		}
 
-		h.handleOpen(lobbyID, l, c, msg.Seconds)
+		// The countdown duration comes from the lobby's own settings,
+		// not from the client message — this way the duration is always
+		// what the host configured via "settings", not whatever a
+		// client could send in the "open" payload.
+		snap := l.Snapshot()
+		h.handleOpen(lobbyID, l, c, snap.Settings.CountdownSeconds)
 
 	case "buzz":
 		if _, err := l.Buzz(msg.PlayerID); err != nil {
@@ -114,18 +118,31 @@ func (h *LobbyWSHandler) handleMessage(lobbyID string, l *lobby.Lobby, c *ws.Cli
 
 		h.broadcastLobby(lobbyID, l)
 
+	case "settings":
+		if msg.PlayerID != l.HostID {
+			c.Send(wsOutbound{Type: "error", Error: "only the host can change settings"})
+			return
+		}
+
+		if err := l.UpdateSettings(lobby.SettingsUpdate{
+			PointsPerRound:   msg.PointsPerRound,
+			CountdownSeconds: msg.CountdownSeconds,
+		}); err != nil {
+			c.Send(wsOutbound{Type: "error", Error: err.Error()})
+			return
+		}
+
+		h.broadcastLobby(lobbyID, l)
+
 	default:
 		c.Send(wsOutbound{Type: "error", Error: "unknown message type"})
 	}
 }
 
-// handleOpen either opens the buzzer immediately (seconds <= 0) or
+// handleOpen either opens the buzzer immediately (seconds == 0) or
 // schedules it to open after a countdown, broadcasting the countdown
 // state right away so every client can render the same "3, 2, 1" using a
-// shared server-clock end time. The actual open transition then happens
-// on a server-side timer, independent of any specific client still being
-// connected — this keeps the countdown fair (everyone's buzzer becomes
-// live at the same instant) regardless of per-client latency.
+// shared server-clock end time.
 func (h *LobbyWSHandler) handleOpen(lobbyID string, l *lobby.Lobby, c *ws.Client, seconds int) {
 	if seconds <= 0 {
 		if err := l.OpenBuzz(); err != nil {
@@ -135,10 +152,6 @@ func (h *LobbyWSHandler) handleOpen(lobbyID string, l *lobby.Lobby, c *ws.Client
 
 		h.broadcastLobby(lobbyID, l)
 		return
-	}
-
-	if seconds < lobby.MinCountdownSeconds {
-		seconds = lobby.MinCountdownSeconds
 	}
 
 	if seconds > lobby.MaxCountdownSeconds {
