@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLobby } from "../api/client";
-import type { ClientMessage, Lobby, ServerMessage } from "../types/lobby";
+import { DEFAULT_SETTINGS, type ClientMessage, type Lobby, type ServerMessage } from "../types/lobby";
 
 function wsUrl(lobbyId: string, playerId: string): string {
   const base = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -8,6 +8,18 @@ function wsUrl(lobbyId: string, playerId: string): string {
   const origin = base ? base.replace(/^https?/, protocol) : `${protocol}://${window.location.host}`;
 
   return `${origin}/api/lobbies/${lobbyId}/ws?playerId=${encodeURIComponent(playerId)}`;
+}
+
+/** Ensure fields added in recent versions are always present, even if a
+ * browser session was opened against an older server. */
+function normaliseLobby(raw: Lobby): Lobby {
+  return {
+    ...raw,
+    settings: raw.settings ?? DEFAULT_SETTINGS,
+    scores: raw.scores ?? [],
+    history: raw.history ?? [],
+    players: raw.players ?? [],
+  };
 }
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
@@ -63,7 +75,7 @@ export function useLobbySocket(lobbyId: string, playerId: string | null): UseLob
           const message = JSON.parse(event.data) as ServerMessage;
 
           if (message.type === "lobby_update") {
-            setLobby(message.lobby);
+            setLobby(normaliseLobby(message.lobby));
             setLastError(null);
           } else if (message.type === "error") {
             setLastError(message.error);
@@ -120,7 +132,7 @@ export function useLobbySocket(lobbyId: string, playerId: string | null): UseLob
     const poll = () => {
       getLobby(lobbyId)
         .then((fresh) => {
-          if (!cancelled) setLobby(fresh);
+          if (!cancelled) setLobby(normaliseLobby(fresh));
         })
         .catch(() => {
           // Ignore — the websocket retry loop already surfaces

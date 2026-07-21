@@ -44,10 +44,8 @@ export function HostControls({
   // Settings can only be changed while waiting or between rounds.
   const settingsLocked = lobby.state === "countdown" || lobby.state === "open" || lobby.state === "locked";
 
-  const countdownLabel =
-    lobby.settings.countdownSeconds === 0
-      ? "Instantané"
-      : `${lobby.settings.countdownSeconds}s`;
+  const countdownSec = lobby.settings?.countdownSeconds ?? 0;
+  const countdownLabel = countdownSec === 0 ? "Instantané" : `${countdownSec}s`;
 
   return (
     <div className="host-controls">
@@ -62,7 +60,7 @@ export function HostControls({
       </div>
 
       <SettingsPanel
-        settings={lobby.settings}
+        settings={lobby.settings ?? { pointsPerRound: 1, countdownSeconds: 3 }}
         disabled={settingsLocked}
         onChange={onSettingsChange}
       />
@@ -104,7 +102,7 @@ export function HostControls({
 
         {lobby.state === "countdown" && (
           <p className="host-controls__countdown">
-            Compte à rebours : <strong>{countdownValue ?? lobby.settings.countdownSeconds}</strong>
+            Compte à rebours : <strong>{countdownValue ?? countdownSec}</strong>
           </p>
         )}
 

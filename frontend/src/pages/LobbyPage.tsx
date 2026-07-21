@@ -11,8 +11,24 @@ import { Scoreboard } from "../components/Scoreboard";
 import { StatusDot } from "../components/StatusDot";
 import { useCountdown } from "../hooks/useCountdown";
 import { useLobbySocket } from "../hooks/useLobbySocket";
-import type { Lobby, LobbySettings, LobbyState } from "../types/lobby";
+import { DEFAULT_SETTINGS, type Lobby, type LobbySettings, type LobbyState } from "../types/lobby";
 import "./LobbyPage.css";
+
+/**
+ * Normalise a raw lobby object coming from the API — older responses or
+ * cached responses may be missing fields added in recent versions. This
+ * keeps every component safe against a `Cannot read properties of
+ * undefined` crash even if a browser has stale data.
+ */
+function normaliseLobby(raw: Lobby): Lobby {
+  return {
+    ...raw,
+    settings: raw.settings ?? DEFAULT_SETTINGS,
+    scores: raw.scores ?? [],
+    history: raw.history ?? [],
+    players: raw.players ?? [],
+  };
+}
 
 type Identity = { role: "host"; id: string } | { role: "player"; id: string };
 
@@ -32,7 +48,7 @@ export function LobbyPage() {
       .then((lobby) => {
         if (cancelled) return;
 
-        setInitialLobby(lobby);
+        setInitialLobby(normaliseLobby(lobby));
 
         const hostId = getRememberedHostId(lobbyId);
         if (hostId && hostId === lobby.hostId) {
