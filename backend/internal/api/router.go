@@ -28,7 +28,7 @@ func NewRouter(logger *slog.Logger, lobbyService *lobby.Service, hub *ws.Hub, al
 
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
-			return originpolicy.IsLocal(origin) || len(allowed) == 0 || allowed[origin]
+			return originpolicy.IsAllowed(origin, allowed)
 		},
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type"},
