@@ -2,13 +2,15 @@ services:
   backend:
     build:
       context: ./backend
+    env_file:
+      - .env
     environment:
       PORT: "8080"
-      # Defaults to where nginx below exposes the frontend in this
-      # stack. Override in .env if you're serving the frontend
-      # elsewhere (e.g. http://localhost:5173 for `npm run dev`
-      # against a backend run outside Docker).
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      # FRONTEND_ORIGINS is read from .env (see .env.example).
+      # The default below keeps the stack working even without a .env file:
+      # nginx serves the bundled frontend on port 8080, so same-origin requests
+      # never hit CORS at all, and localhost is always implicitly allowed.
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
       VALKEY_ADDR: valkey:6379
       LOBBY_TTL: 6h
       LOBBY_CLEANUP_INTERVAL: 10m

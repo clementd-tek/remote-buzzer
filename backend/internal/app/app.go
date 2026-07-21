@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/clementd-tek/remote-buzzer/backend/internal/api"
 	"github.com/clementd-tek/remote-buzzer/backend/internal/cache"
@@ -66,15 +65,15 @@ func New(cfg config.Config, logger *slog.Logger) *App {
 		manager,
 	)
 
-	allowedOrigins := splitOrigins(cfg.FrontendOrigin)
-
-	hub := ws.NewHub(logger, allowedOrigins)
+	// cfg.FrontendOrigins is already a parsed []string from config.Load().
+	// localhost variants are always allowed by originpolicy.IsLocal regardless.
+	hub := ws.NewHub(logger, cfg.FrontendOrigins)
 
 	router := api.NewRouter(
 		logger,
 		lobbyService,
 		hub,
-		allowedOrigins,
+		cfg.FrontendOrigins,
 	)
 
 	server := &http.Server{
@@ -134,19 +133,4 @@ func (a *App) Shutdown() error {
 	}
 
 	return err
-}
-
-func splitOrigins(raw string) []string {
-	parts := strings.Split(raw, ",")
-	origins := make([]string, 0, len(parts))
-
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-
-		if p != "" {
-			origins = append(origins, p)
-		}
-	}
-
-	return origins
 }
